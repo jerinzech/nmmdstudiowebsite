@@ -54,6 +54,7 @@
   width: 100%;
   height: 100vh;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
@@ -61,5 +62,29 @@
 #landingpagetext {
   font-family: "Borel", cursive;
   font-weight: 400;
-  font-size: 100px;
+  font-size: 96px;
+}
+
+#landingpagesubtext {
+  font-family: "Work Sans", sans-serif;
+  font-weight: 400;
+  font-size: 24px;
+  color: grey;
+  position: absolute;
+  bottom: 300px;
+  width: 100%;
+  text-align: bottom;
+  padding: 100px;
+}
+
+#bottomtext {
+  font-family: "Work Sans", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: grey;
+  position: absolute;
+  bottom: 10px;
+  width: 100%;
+  text-align: bottom;
+  align-items: botom;
 }
