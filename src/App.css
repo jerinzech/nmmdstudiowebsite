@@ -1,6 +1,6 @@
 #root {
   /* max-width: 1280px; */
-  /* margin: 0 auto; */
+  margin: 0 auto;
   /* padding: 2rem; */
   text-align: center;
 }
@@ -86,5 +86,5 @@
   bottom: 10px;
   width: 100%;
   text-align: bottom;
-  align-items: botom;
+  /* align-items: botom; */
 }
