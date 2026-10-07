@@ -1,90 +1,21 @@
-#root {
-  /* max-width: 1280px; */
-  margin: 0 auto;
-  /* padding: 2rem; */
-  text-align: center;
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Borel', cursive;
+  --font-sans: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
-/*
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+@layer base {
+  html {
+    color-scheme: dark;
   }
-  to {
-    transform: rotate(360deg);
+
+  body {
+    @apply bg-neutral-900 text-neutral-100 antialiased;
+    margin: 0;
   }
-}
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+  #app {
+    min-height: 100vh;
   }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-} */
-
-/* .borel-regular {
-  font-family: "Borel", cursive;
-  font-weight: 400;
-  font-style: normal;
-} */
-
-#mainapp {
-  background-color: #1a1a1a;
-  width: 100%;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-#landingpagetext {
-  font-family: "Borel", cursive;
-  font-weight: 400;
-  font-size: 96px;
-}
-
-#landingpagesubtext {
-  font-family: "Work Sans", sans-serif;
-  font-weight: 400;
-  font-size: 24px;
-  color: grey;
-  position: absolute;
-  bottom: 300px;
-  width: 100%;
-  text-align: bottom;
-  padding: 100px;
-}
-
-#bottomtext {
-  font-family: "Work Sans", sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  color: grey;
-  position: absolute;
-  bottom: 10px;
-  width: 100%;
-  text-align: bottom;
-  /* align-items: botom; */
 }
