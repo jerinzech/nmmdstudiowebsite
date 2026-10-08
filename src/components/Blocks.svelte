@@ -17,18 +17,21 @@
   /*
    * Two emission units, one decision each.
    *
-   * Structure is authored against a design viewport and emitted in dvh, so
-   * the blocks keep their proportions on every desktop — and, critically, are
-   * measured against the same dynamic viewport as the 85dvh body they sit
-   * in. Plain vh is the large viewport with the mobile address bar collapsed;
-   * emitting it against a dvh body made the column render ~15% taller than
-   * its container on a phone, cutting off everything below the top strip.
+   * Structure is authored against a design viewport and emitted in svh, so
+   * the blocks keep their proportions on every desktop — and stay stable on
+   * a phone. Viewport-unit changes do not run transitions: emitted in dvh,
+   * every collapse or expansion of the mobile address bar resized all the
+   * blocks in one jump mid-scroll. The small viewport is the toolbar-expanded
+   * size, constant at all times, so nothing resizes under a gesture; the
+   * slack against the 85dvh body when the toolbar is collapsed centres out.
+   * Plain vh has the same jump problem in the other direction and would also
+   * overflow the body — see the body rule for that history.
    *
    * Text is emitted in rem, so type stays legible instead of scaling with
    * the screen — the greeting, the titles and the strip labels all hold
    * their size while the glass around them grows.
    */
-  const dvh = (n: number) => `${n}dvh`;
+  const svh = (n: number) => `${n}svh`;
 
   const PX_PER_REM = 16;
   const rem = (px: number) => `${px / PX_PER_REM}rem`;
@@ -36,11 +39,11 @@
   const MAX_WIDTH = 1400;
 
   /*
-   * Block heights per scroll step for the desktop column, in dvh of the
+   * Block heights per scroll step for the desktop column, in svh of the
    * viewport (the design viewport is 1080px tall; 50px there is 4.6).
    *
    * The stages are tuned so every column fits inside the 85dvh body with a
-   * little slack — the stack, two gaps, the column gap and the 7dvh row land
+   * little slack — the stack, two gaps, the column gap and the 7svh row land
    * at 84.7 or under — so no stage clips its own content.
    *
    * Step 0 is the first impression: one tall block over two thin strips. Step 1
@@ -56,18 +59,19 @@
   ] as const;
 
   /*
-   * The same four stages, authored for the narrow column in vh of a phone's
-   * viewport (~660px; 50px there is 7.6vh): shorter throughout so the tallest
-   * step still fits the 85vh body, while keeping the strip heights and the
-   * tall/strip pattern of the desktop table — which is what the shared RADII
-   * table and the short-title behaviour key off. Block 1 stays above the
-   * compact threshold in stages 1 and 4 and below it in 2 and 3, matching the
-   * desktop rhythm.
+   * The same four stages, authored for the narrow column in svh of a phone's
+   * viewport (~660px; 50px there is 7.6): shorter throughout so the tallest
+   * step still fits the 85dvh body with real slack even on short phones —
+   * the pinned 3.5rem row eats a fixed 56px of it — while keeping the strip
+   * heights and the tall/strip pattern of the desktop table, which is what
+   * the shared RADII table and the short-title behaviour key off. Block 1
+   * stays above the compact threshold in stages 1 and 4 and below it in 2 and
+   * 3, matching the desktop rhythm.
    */
   const MOBILE_HEIGHTS = [
     [53, 7.6, 7.6],
-    [21.2, 41, 7.6],
-    [21.2, 21.2, 41],
+    [21.2, 40, 7.6],
+    [21.2, 21.2, 40],
     [51.5, 7.6, 7.6],
   ] as const;
 
@@ -383,15 +387,15 @@
   class:blocks--entered={entered}
   style="
     --max-width: {rem(MAX_WIDTH)};
-    --block-gap: {dvh(BLOCK_GAP)};
+    --block-gap: {svh(BLOCK_GAP)};
     --small-gap: {rem(SMALL_GAP)};
     --small-width: {rem(SMALL_WIDTH)};
-    --small-height: {dvh(SMALL_HEIGHTS[step])};
-    --small-radius: {dvh(SMALL_RADII[step])};
+    --small-height: {svh(SMALL_HEIGHTS[step])};
+    --small-radius: {svh(SMALL_RADII[step])};
     --rise-ease: {RISE_EASE};
     --morph-duration: {MORPH_DURATION}s;
     --morph-ease: {MORPH_EASE};
-    --stack-height: {dvh(stackHeightFor(step))};
+    --stack-height: {svh(stackHeightFor(step))};
   "
   bind:this={sectionEl}
   onmousemove={onGlowMove}
@@ -407,7 +411,7 @@
         class:block--short={isShort(height)}
         class:block--tiled={RADII[step][i] === TILE_RADIUS}
         class:block--compact={block.id === 'work' && height <= WORK_COMPACT_HEIGHT}
-        style="--height: {dvh(height)}; --radius: {dvh(RADII[step][i])}; --index: {i}"
+        style="--height: {svh(height)}; --radius: {svh(RADII[step][i])}; --index: {i}"
       >
         {#if isShort(height)}
           <h2 class="block__title">{block.label}</h2>

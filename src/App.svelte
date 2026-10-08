@@ -109,7 +109,7 @@
    * Delete the state, the class:xray, the button and its rule, and the x-ray
    * section in index.css together when finetuning is done.
    */
-  let guides = $state(true);
+  let guides = $state(false);
 </script>
 
 <main id="mainapp" class:xray={guides}>
@@ -139,8 +139,9 @@
     <div class="stage-anchor" style="top: {i * 100}dvh"></div>
   {/each}
 
-  <!-- DEBUG: layout-guidelines toggle; see the state comment above. -->
-  <button class="guides" onclick={() => (guides = !guides)} aria-pressed={guides}>
+  <!-- DEBUG: layout-guidelines toggle; hidden for now — drop the `hidden`
+       attribute to bring it back. -->
+  <button class="guides" hidden onclick={() => (guides = !guides)} aria-pressed={guides}>
     guides {guides ? 'on' : 'off'}
   </button>
 </main>
