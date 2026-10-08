@@ -31,6 +31,29 @@
      * the runway.
      */
     overscroll-behavior-y: contain;
+
+    /*
+     * The stage engine's landing gear: every scroll gesture — wheel, trackpad,
+     * touch, keys — ends on a stage boundary in the runway (the targets are
+     * the sticky page and the stage anchors in App.svelte). Mandatory, not
+     * proximity: the position can never rest between stages, so the runway
+     * never shows as blank space and the column always reads a whole stage.
+     * This replaces the JS stepper entirely; Blocks.svelte only reads the
+     * position back off the snap.
+     */
+    scroll-snap-type: y mandatory;
+
+    /*
+     * The scrollbar is hidden: the runway's scroll is the stage input, not a
+     * document to browse, and a thumb on a snapped track says nothing useful.
+     * Both engines, standard and WebKit; scrolling itself is untouched.
+     */
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 
   body {
@@ -256,14 +279,18 @@
 
 /*
  * Anchors for the tags. Everything else that carries one already positions
- * itself (.loader is fixed, .landing and .measure absolute, .block relative);
- * these are static boxes, and .page is safe to relativise because it fills
- * #mainapp exactly, so the .landing overlay keeps its geometry.
+ * itself (.loader, .landing and .to-top are fixed, .measure absolute, .block
+ * relative); these are static boxes.
+ *
+ * .page must NOT be relativised: it is the sticky page, and this rule would
+ * out-specify the sticky and scroll the whole page away with the runway —
+ * which is exactly how the guides once broke the site. Its chip anchors to
+ * #mainapp instead, which is where the page sits while pinned anyway.
  */
-#mainapp.xray .page,
 #mainapp.xray .nav,
 #mainapp.xray .nav__bar,
 #mainapp.xray .nav__logo,
+#mainapp.xray .blocks,
 #mainapp.xray .column,
 #mainapp.xray .stack,
 #mainapp.xray .row,

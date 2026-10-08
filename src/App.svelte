@@ -128,6 +128,17 @@
     <Footer revealed={stage === 'home'} />
   </div>
 
+  <!--
+    Snap targets for the stage boundaries: one per stage past the first, at
+    each viewport of runway. Paired with scroll-snap-type on <html>, every
+    gesture ends on a stage; the sticky .page itself is the target for stage 1
+    at the runway's start. One fewer anchor than stages — keep in step with
+    Blocks.svelte's HEIGHTS table.
+  -->
+  {#each [1, 2, 3] as i (i)}
+    <div class="stage-anchor" style="top: {i * 100}dvh"></div>
+  {/each}
+
   <!-- DEBUG: layout-guidelines toggle; see the state comment above. -->
   <button class="guides" onclick={() => (guides = !guides)} aria-pressed={guides}>
     guides {guides ? 'on' : 'off'}
@@ -140,8 +151,9 @@
    * tall (the four stages live in Blocks.svelte's HEIGHTS table), and the
    * sticky .page below pins at the top while this height scrolls underneath —
    * so the visitor scrolls the stages in and out while the column stays on
-   * screen. Blocks.svelte maps the scroll position to the stage and eases to
-   * the nearest boundary once the scrolling settles.
+   * screen. Native scroll snapping (index.css, with this page and the stage
+   * anchors below as targets) lands every gesture on a stage boundary;
+   * Blocks.svelte reads the position back as the stage.
    *
    * dvh over vh: the dynamic viewport tracks the space the mobile browser's
    * collapsed address bar and notification sheet actually leave, where vh
@@ -170,10 +182,27 @@
   .page {
     position: sticky;
     top: 0;
+
+    /* Stage 1's snap target: its top is the runway's start. */
+    scroll-snap-align: start;
+
     display: flex;
     flex-direction: column;
     height: 100vh;
     height: 100dvh;
+  }
+
+  /*
+   * The invisible stage boundaries the scroller snaps to — see the markup
+   * comment. One viewport tall so every snap area covers its whole stage.
+   */
+  .stage-anchor {
+    position: absolute;
+    left: 0;
+    width: 1px;
+    height: 100vh;
+    height: 100dvh;
+    scroll-snap-align: start;
   }
 
   /* DEBUG: the layout-guidelines toggle; see the state comment above. */

@@ -15,18 +15,33 @@
   }: { revealed?: boolean; reset?: number } = $props();
 
   /*
-   * The size tables below are authored in px, the design spec's unit, but every
-   * measurement that reaches the stylesheet is emitted in rem through this
-   * helper, so the whole column scales with the root font size and the layout
-   * is truly responsive rather than locked to a 16px root.
+   * Two emission units, one decision each.
+   *
+   * Structure is authored against a design viewport and emitted in dvh, so
+   * the blocks keep their proportions on every desktop — and, critically, are
+   * measured against the same dynamic viewport as the 85dvh body they sit
+   * in. Plain vh is the large viewport with the mobile address bar collapsed;
+   * emitting it against a dvh body made the column render ~15% taller than
+   * its container on a phone, cutting off everything below the top strip.
+   *
+   * Text is emitted in rem, so type stays legible instead of scaling with
+   * the screen — the greeting, the titles and the strip labels all hold
+   * their size while the glass around them grows.
    */
+  const dvh = (n: number) => `${n}dvh`;
+
   const PX_PER_REM = 16;
   const rem = (px: number) => `${px / PX_PER_REM}rem`;
 
   const MAX_WIDTH = 1400;
 
   /*
-   * Block heights per scroll step for the desktop column, in px.
+   * Block heights per scroll step for the desktop column, in dvh of the
+   * viewport (the design viewport is 1080px tall; 50px there is 4.6).
+   *
+   * The stages are tuned so every column fits inside the 85dvh body with a
+   * little slack — the stack, two gaps, the column gap and the 7dvh row land
+   * at 84.7 or under — so no stage clips its own content.
    *
    * Step 0 is the first impression: one tall block over two thin strips. Step 1
    * moves height from block 1 into block 2. Step 2 flattens both of those and
@@ -34,25 +49,26 @@
    * hands the column over to the row of small blocks below.
    */
   const DESKTOP_HEIGHTS = [
-    [700, 50, 50],
-    [200, 550, 50],
-    [200, 200, 400],
-    [500, 50, 50],
+    [64, 4.6, 4.6],
+    [18.5, 50, 4.6],
+    [18.5, 18.5, 36.5],
+    [46, 4.6, 4.6],
   ] as const;
 
   /*
-   * The same four stages, authored for the narrow column: shorter throughout
-   * so the tallest step still fits the 85vh body on a phone, while keeping the
-   * strip heights and the tall/strip pattern of the desktop table — which is
-   * what the shared RADII table and the short-title behaviour key off. Block 1
-   * stays above the compact threshold in stages 1 and 4 and below it in 2 and
-   * 3, matching the desktop rhythm.
+   * The same four stages, authored for the narrow column in vh of a phone's
+   * viewport (~660px; 50px there is 7.6vh): shorter throughout so the tallest
+   * step still fits the 85vh body, while keeping the strip heights and the
+   * tall/strip pattern of the desktop table — which is what the shared RADII
+   * table and the short-title behaviour key off. Block 1 stays above the
+   * compact threshold in stages 1 and 4 and below it in 2 and 3, matching the
+   * desktop rhythm.
    */
   const MOBILE_HEIGHTS = [
-    [350, 50, 50],
-    [140, 270, 50],
-    [140, 140, 270],
-    [340, 50, 50],
+    [53, 7.6, 7.6],
+    [21.2, 41, 7.6],
+    [21.2, 21.2, 41],
+    [51.5, 7.6, 7.6],
   ] as const;
 
   /*
@@ -75,27 +91,32 @@
   /** The active table: the desktop column, or the shorter mobile one. */
   const HEIGHTS = $derived(narrow ? MOBILE_HEIGHTS : DESKTOP_HEIGHTS);
 
-  /** The design's tile corner: every block's radius when it is not a pill. */
-  const TILE_RADIUS = 40;
+  /*
+   * The design's tile corner (40px at the 1080px design viewport is 3.7vh):
+   * every block's radius when it is not a pill. Viewport-scaled with the
+   * heights, so a big desktop's tiles carry proportionally larger corners.
+   */
+  const TILE_RADIUS = 3.7;
 
   /*
-   * The strip pill: exactly half the 50px strip height, which is the full pill.
+   * The strip pill: exactly half the 4.6vh strip height, which is the full
+   * pill.
    *
    * Written as the honest rendered value rather than a huge number the browser
    * would clamp into the same pill. Either renders identically at rest, but
-   * only this one interpolates: transitioning a huge number down to 40 leaves
-   * the rendered radius riding the clamp at half the box, then snapping in the
-   * final frames of the morph.
+   * only this one interpolates: transitioning a huge number down to the tile
+   * leaves the rendered radius riding the clamp at half the box, then snapping
+   * in the final frames of the morph.
    */
-  const PILL_RADIUS = 25;
+  const PILL_RADIUS = 2.3;
 
   /*
    * Corner radius per step for the stack blocks, aligned row-for-row with
    * HEIGHTS.
    *
-   * Row 1 (work) is a 40px tile at every step. Rows 2 and 3 are pills while
-   * they are strips and tiles of 40px whenever they are tall, so their radius
-   * travels with their height at each step change.
+   * Row 1 (work) is a tile at every step. Rows 2 and 3 are pills while they
+   * are strips and tiles whenever they are tall, so their radius travels with
+   * their height at each step change.
    */
   const RADII = [
     [TILE_RADIUS, PILL_RADIUS, PILL_RADIUS],
@@ -106,32 +127,37 @@
 
   /*
    * The greeting's compact state: below this height on block 1 the greeting
-   * shrinks to 48px and parks left. Block 1 stands at 200px in stages 2 and 3
-   * and at 700px and 500px in stages 1 and 4, so this is the boundary between
-   * the compact and the full-size greeting.
+   * shrinks and parks left. Block 1 stands at 18.5–21.2vh in stages 2 and 3
+   * and at 46–65vh in stages 1 and 4, so this sits between them at both
+   * breakpoints.
    */
-  const WORK_COMPACT_HEIGHT = 300;
+  const WORK_COMPACT_HEIGHT = 30;
 
   /*
-   * The body is four rows: the three stack blocks and the small row, all
-   * sharing one vertical rhythm of 1rem (16px authored, emitted as rem below)
-   * — the gap is the same at every step.
+   * The body is four rows: the three stack blocks and the small row. The
+   * vertical gap between them is 1.5vh (16px at the design viewport), emitted
+   * with the heights so the rhythm scales with the column; the small row's
+   * horizontal gap stays a fixed rem.
    */
-  const BLOCK_GAP = 16;
+  const BLOCK_GAP = 1.5;
   const SMALL_GAP = 20;
 
   const SMALL_COUNT = 5;
   const SMALL_WIDTH = 250;
 
   /**
-   * Height of the small row per scroll step.
+   * Height of the small row per scroll step, in vh.
    *
-   * The last step squares them off at 250px to match their width, so the row
-   * reads as a set of tiles rather than tabs.
+   * The last step squares them off at 23vh to match their width, so the row
+   * reads as a set of tiles rather than tabs. Below 40rem the mobile media
+   * query pins the row to 3.5rem pills and this emission is not read.
    */
-  const SMALL_HEIGHTS = [75, 75, 75, 250] as const;
+  const SMALL_HEIGHTS = [7, 7, 7, 23] as const;
 
-  /** Height of a step's stack: its blocks plus the gaps between them. */
+  /**
+   * Height of a step's stack: its blocks plus the gaps between them. All the
+   * terms are vh numbers, so the sum emits directly as vh.
+   */
   const stackHeightFor = (i: number) =>
     HEIGHTS[i].reduce((a, b) => a + b, 0) + BLOCK_GAP * (HEIGHTS[i].length - 1);
 
@@ -184,117 +210,59 @@
   const stepSpan = () =>
     (document.documentElement.scrollHeight - window.innerHeight) / (HEIGHTS.length - 1);
 
-  /*
-   * Where the current gesture started, and the stage it started from. The
-   * gesture is consumed against these rather than against the live position,
-   * so momentum cannot carry one flick through more stages than the distance
-   * it actually covers.
-   */
-  let gestureOrigin = 0;
-  let gestureStage = 0;
-
-  /*
-   * True while a programmatic glide is in flight.
-   *
-   * The glide's own scroll events are not gestures. Without this flag,
-   * apply() read the settle glide's motion as a fresh flick and consumed
-   * another stage from it — which started another glide, which consumed
-   * again, and the column cycled through its stages with nobody touching it.
-   * While gliding, input is ignored until the glide arrives; a user flick
-   * that interrupts a glide is walked back to the boundary it was heading
-   * for, and the next gesture after landing counts normally.
-   */
-  let gliding = false;
-
   let applyRaf: number | undefined;
-  let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
   /*
-   * The stage is consumed the moment a gesture crosses the intent threshold,
-   * not once the scrolling settles — the morph starts under the gesture, on
-   * the first frames of the movement. Waiting for the momentum to die before
-   * stepping is what made the column feel unresponsive to the scroll.
+   * The stage is read straight off the scroll position.
    *
-   * Drift smaller than a few percent of a stage is jitter, not intent, and is
-   * ignored; a reversal mid-gesture simply re-targets from the stage the
-   * gesture began at.
+   * Native scroll snapping owns the landing: `scroll-snap-type` on <html>
+   * (index.css) and the stage anchors in App.svelte guarantee that every
+   * gesture — wheel, trackpad, touch, keys — ends on a stage boundary, so
+   * rounding the position is exact and the browser's own engine handles the
+   * reliability. This side only adopts the stage as a boundary is crossed
+   * mid-flight, so the morph starts under the gesture rather than after it.
+   *
+   * The earlier JS stepper — timers, momentum waits, smooth-scroll glides
+   * and the flags to keep them from consuming their own motion — was three
+   * rounds of bugs: a cascade that cycled the stages on its own, a walk-back
+   * that dragged the page opposite the gesture, and a swallow window that
+   * ate the second and third flicks. Snapping does all of that in the
+   * compositor.
    */
   const apply = () => {
-    if (gliding) return;
-
-    const span = stepSpan();
-    const delta = scrollY - gestureOrigin;
-
-    if (Math.abs(delta) < span * 0.05) return;
-
-    const covered = Math.max(1, Math.round(Math.abs(delta) / span));
     const next = Math.min(
-      Math.max(0, gestureStage + Math.sign(delta) * covered),
+      Math.max(0, Math.round(scrollY / stepSpan())),
       HEIGHTS.length - 1,
     );
 
     if (next !== step) step = next;
   };
 
-  /*
-   * Once the scrolling settles, glide to the boundary of the stage the
-   * gesture consumed. The morph has already started on the way in, so the
-   * settle only finishes the position — the perceived response is the
-   * morph's first frame, not the snap's arrival.
-   *
-   * Arrival clears the glide flag: within 2px of the boundary the glide is
-   * over and gestures count again, so the flag cannot stick and swallow the
-   * next real flick.
-   */
-  const settle = () => {
-    const target = step * stepSpan();
-
-    if (Math.abs(scrollY - target) < 2) {
-      gliding = false;
-    } else {
-      gliding = true;
-      scrollTo({ top: target, behavior: 'smooth' });
-    }
-
-    gestureOrigin = target;
-    gestureStage = step;
-  };
-
   const onScroll = () => {
     /*
      * The position is read inside a rAF rather than in the handler itself, so
      * a momentum fling cannot queue more step writes than the browser will
-     * paint; the settle timer re-arms on every event so it only fires once
-     * the momentum has died down.
+     * paint.
      */
-    if (applyRaf === undefined) {
-      applyRaf = requestAnimationFrame(() => {
-        applyRaf = undefined;
-        apply();
-      });
-    }
+    if (applyRaf !== undefined) return;
 
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, 120);
+    applyRaf = requestAnimationFrame(() => {
+      applyRaf = undefined;
+      apply();
+    });
   };
 
   /*
    * Take-to-the-top: glide back to stage 1.
    *
-   * The scroll position is the stage, so returning to the top is one smooth
-   * scroll to the runway's start — the column morphs directly from stage 4's
-   * sizes to stage 1's on the way, which reads as the page being taken back
-   * to the top.
+   * Just the scroll — the position is the stage, so as the glide runs this
+   * engine walks the column down through the stages and the morphs play on
+   * the way up, and the native snap holds the landing at the runway's start.
    */
   const toTop = () => {
     if (step === 0) return;
 
-    /* The glide back is programmatic: its own events must not be consumed. */
-    gliding = true;
     scrollTo({ top: 0, behavior: 'smooth' });
-    gestureOrigin = 0;
-    gestureStage = 0;
-    step = 0;
   };
 
   /*
@@ -315,19 +283,17 @@
     /*
      * Only once the blocks are on screen. App locks the document's scroll
      * through the loader and the hero, so the runway is at rest at the top —
-     * stage 1 — when the homepage takes over, and the gesture engine owns
-     * every scroll from here.
+     * stage 1 — when the homepage takes over, and every scroll from here
+     * lands on a stage by the native snap.
      */
     if (!revealed) return;
 
-    gestureOrigin = 0;
-    gestureStage = 0;
+    apply();
 
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       window.removeEventListener('scroll', onScroll);
-      clearTimeout(settleTimer);
       if (applyRaf !== undefined) cancelAnimationFrame(applyRaf);
     };
   });
@@ -335,10 +301,11 @@
   /**
    * Below this height a block is a strip: no room for title and copy together,
    * so it carries its title alone, centred, rather than clipping a line in
-   * half. Block 1 never comes this low; blocks 2 and 3 are strips whenever they
-   * stand at the tabled 50px.
+   * half. Strips sit at 4.6vh on desktop and 7.6vh on mobile; the tallest of
+   * the small blocks never comes close from above, so one vh threshold serves
+   * both tables.
    */
-  const SHORT_HEIGHT = 140;
+  const SHORT_HEIGHT = 12;
 
   /** Short strips drop their copy and keep their centred title. */
   const isShort = (height: number) => height < SHORT_HEIGHT;
@@ -361,17 +328,17 @@
   });
 
   /**
-   * Border-radius for the small blocks per step, in px.
+   * Border-radius for the small blocks per step, in vh.
    *
-   * The strips are pills at exactly half their height (37.5px) rather than at a
-   * huge value the browser would clamp into a pill. Either renders the same at
-   * rest, but only the honest value interpolates: transitioning 10000 down to
-   * 40 left the rendered radius riding the clamp at half the growing box, then
-   * snapping from ~125px to 40px in the final frames of the expansion — the
+   * The strips are pills at exactly half their 7vh height (3.5vh) rather than
+   * at a huge value the browser would clamp into a pill. Either renders the
+   * same at rest, but only the honest value interpolates: transitioning a huge
+   * number down to the tile left the rendered radius riding the clamp at half
+   * the growing box, then snapping in the final frames of the expansion — the
    * visible jerk in the last step. A value that matches what is actually
    * painted lets the radius travel with the height for the whole morph.
    */
-  const SMALL_RADII = [37.5, 37.5, 37.5, 40] as const;
+  const SMALL_RADII = [3.5, 3.5, 3.5, 3.7] as const;
 
   /* ── cursor-tracking glow ─────────────────────────────────────────────── */
 
@@ -416,15 +383,15 @@
   class:blocks--entered={entered}
   style="
     --max-width: {rem(MAX_WIDTH)};
-    --block-gap: {rem(BLOCK_GAP)};
+    --block-gap: {dvh(BLOCK_GAP)};
     --small-gap: {rem(SMALL_GAP)};
     --small-width: {rem(SMALL_WIDTH)};
-    --small-height: {rem(SMALL_HEIGHTS[step])};
-    --small-radius: {rem(SMALL_RADII[step])};
+    --small-height: {dvh(SMALL_HEIGHTS[step])};
+    --small-radius: {dvh(SMALL_RADII[step])};
     --rise-ease: {RISE_EASE};
     --morph-duration: {MORPH_DURATION}s;
     --morph-ease: {MORPH_EASE};
-    --stack-height: {rem(stackHeightFor(step))};
+    --stack-height: {dvh(stackHeightFor(step))};
   "
   bind:this={sectionEl}
   onmousemove={onGlowMove}
@@ -440,7 +407,7 @@
         class:block--short={isShort(height)}
         class:block--tiled={RADII[step][i] === TILE_RADIUS}
         class:block--compact={block.id === 'work' && height <= WORK_COMPACT_HEIGHT}
-        style="--height: {rem(height)}; --radius: {rem(RADII[step][i])}; --index: {i}"
+        style="--height: {dvh(height)}; --radius: {dvh(RADII[step][i])}; --index: {i}"
       >
         {#if isShort(height)}
           <h2 class="block__title">{block.label}</h2>
