@@ -83,8 +83,8 @@
   }
 
   /*
-   * Squircle corners on the three main homepage blocks, matching their 38px
-   * radius with the design's 100% corner smoothing.
+   * Squircle corners on the homepage blocks, matching their border-radius with
+   * the design's 100% corner smoothing.
    *
    * corner-shape carries the smoothing itself, so this is one declaration rather
    * than a radius plus a hand-tuned approximation. Squircles are a continuous G2
@@ -96,12 +96,185 @@
    * from inside the component. Global CSS is not parsed the same way.
    *
    * Wrapped in @supports so browsers without it drop the block cleanly instead
-   * of parsing a declaration they cannot understand. The 38px radius is set on
-   * the blocks regardless, so they stay rounded either way.
+   * of parsing a declaration they cannot understand. The border-radius is set
+   * on the blocks regardless, so they stay rounded either way.
+   *
+   * The small row is excluded while it is a strip: squircle smoothing applied to
+   * a full pill (radius = half the height) distorts the stadium into a
+   * superellipse blob, and the smoothing is only wanted on the expanded tiles.
+   * `.row--expanded` is set on the row from Blocks.svelte at the final step, and
+   * the component transitions this property so the shape eases in with the
+   * expansion rather than flipping at the step boundary.
    */
   @supports (corner-shape: squircle) {
-    .block {
+    .block:not(.block--small) {
       corner-shape: squircle;
+    }
+
+    .row--expanded .block--small {
+      corner-shape: squircle;
+    }
+
+    /*
+     * corner-shape is not inherited, so the glow's ::after does not pick up its
+     * block's shape on its own. Explicit inheritance keeps the ring -- painted
+     * as a border-area background in Blocks.svelte -- following the same corners
+     * the border draws, including while the expansion interpolates the shape.
+     */
+    .block::after {
+      corner-shape: inherit;
     }
   }
 }
+
+/*
+ * ── DEBUG: layout x-ray ─────────────────────────────────────────────────────
+ *
+ * Temporary scaffolding for reading the stage/step animations: every
+ * structural box is outlined and the major ones carry their selector name as a
+ * tag, colour-coded by region.
+ *
+ * Outlines paint outside layout and the tags are absolutely positioned, so
+ * neither adds width or height — the geometry under observation is not
+ * disturbed, and both ride along with transforms and height morphs since they
+ * are painted with the element itself each frame.
+ *
+ * Unlayered so it wins over everything above. DELETE THIS WHOLE SECTION when
+ * the animations are decoded.
+ */
+
+/* Faint dashes on every structural element, named or not. */
+#mainapp div,
+#mainapp section,
+#mainapp header,
+#mainapp nav,
+#mainapp footer,
+#mainapp article,
+#mainapp main,
+#mainapp .clone,
+#mainapp .letter,
+#mainapp .letter-mask,
+#mainapp .nmmd,
+#mainapp .studio,
+#mainapp .measure__word,
+#mainapp .measure__letter {
+  outline: 1px dashed rgb(255 255 255 / 0.25);
+  outline-offset: -1px;
+}
+
+/* Named boxes, solid and colour-coded: app yellow, loader/landing rose,
+   navbar violet, blocks cyan, small row green, footer pink. */
+#mainapp,
+.page {
+  outline: 1px solid rgb(250 204 21 / 0.9);
+}
+
+.loader,
+.landing,
+.nmmd,
+.studio {
+  outline: 1px solid rgb(251 113 133 / 0.9);
+}
+
+.nav,
+.nav__bar,
+.nav__logo {
+  outline: 1px solid rgb(167 139 250 / 0.9);
+}
+
+.blocks,
+.column,
+.stack,
+.block {
+  outline: 1px solid rgb(34 211 238 / 0.9);
+}
+
+.row,
+.block--small {
+  outline: 1px solid rgb(74 222 128 / 0.9);
+}
+
+.footer,
+.measure {
+  outline: 1px solid rgb(244 114 182 / 0.9);
+}
+
+/*
+ * Anchors for the tags. Everything listed already positions itself except
+ * these; .page is safe to relativise because it fills #mainapp exactly, so the
+ * .landing overlay anchored to it keeps its geometry.
+ */
+.page,
+.nav__bar,
+.nav__logo,
+.column,
+.stack,
+.row {
+  position: relative;
+}
+
+/* The tag itself: a small name chip at the box's corner. */
+#mainapp::before,
+.page::before,
+.loader::before,
+.nav::before,
+.nav__bar::before,
+.nav__logo::before,
+.landing::before,
+.measure::before,
+.blocks::before,
+.column::before,
+.stack::before,
+.block::before,
+.row::before,
+.footer::before {
+  content: var(--debug-label);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 400;
+  white-space: nowrap;
+  color: rgb(0 0 0 / 0.9);
+  background: rgb(255 255 255 / 0.85);
+  pointer-events: none;
+  /*
+   * The navbar logo paints its glyphs with a transparent text fill; the tag
+   * must not inherit it or it would render invisible.
+   */
+  -webkit-text-fill-color: currentColor;
+}
+
+/* Names, as the selector they come from. */
+#mainapp { --debug-label: '#mainapp'; }
+.page { --debug-label: '.page'; }
+.loader { --debug-label: '.loader (fixed)'; }
+.nav { --debug-label: '.nav (sticky)'; }
+.nav__bar { --debug-label: '.nav__bar'; }
+.nav__logo { --debug-label: '.nav__logo'; }
+.landing { --debug-label: '.landing (absolute overlay)'; }
+.measure { --debug-label: '.measure (hidden width reader)'; }
+.blocks { --debug-label: '.blocks'; }
+.column { --debug-label: '.column'; }
+.stack { --debug-label: '.stack'; }
+.block { --debug-label: '.block'; }
+.block--small { --debug-label: '.block--small'; }
+.row { --debug-label: '.row'; }
+.footer { --debug-label: '.footer (fixed)'; }
+
+/* Corners staggered so nested tags do not sit on the same spot. */
+#mainapp::before { top: auto; left: auto; bottom: 0; right: 0; }
+.page::before { top: auto; bottom: 0; }
+.nav__bar::before { left: auto; right: 0; }
+.nav__logo::before { top: 100%; }
+.landing::before { left: auto; right: 0; }
+.measure::before { top: auto; bottom: 0; visibility: visible; }
+.column::before { left: auto; right: 0; }
+.stack::before { top: auto; bottom: 0; }
+.block--small::before { top: auto; bottom: 0; }
+.row::before { left: auto; right: 0; }

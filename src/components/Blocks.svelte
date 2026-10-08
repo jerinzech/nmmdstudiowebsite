@@ -235,12 +235,17 @@
   });
 
   /**
-   * Border-radius for the small blocks per step.
+   * Border-radius for the small blocks per step, in px.
    *
-   * Steps 0–2 use a huge radius so the 75 px strips become pills. Step 3
-   * drops to the design's 40 px so the 250 px squares read as tiles.
+   * The strips are pills at exactly half their height (37.5px) rather than at a
+   * huge value the browser would clamp into a pill. Either renders the same at
+   * rest, but only the honest value interpolates: transitioning 10000 down to
+   * 40 left the rendered radius riding the clamp at half the growing box, then
+   * snapping from ~125px to 40px in the final frames of the expansion — the
+   * visible jerk in the last step. A value that matches what is actually
+   * painted lets the radius travel with the height for the whole morph.
    */
-  const SMALL_RADII = [10000, 10000, 10000, 40] as const;
+  const SMALL_RADII = [37.5, 37.5, 37.5, 40] as const;
 
   /* ── cursor-tracking glow ─────────────────────────────────────────────── */
 
@@ -318,7 +323,7 @@
       {/each}
     </div>
 
-    <div class="row">
+    <div class="row" class:row--expanded={step === HEIGHTS.length - 1}>
       {#each SMALL as block, i (block.id)}
         <article class="block block--small" style="--index: {i}">
           <h3>{block.label}</h3>
@@ -503,6 +508,39 @@
     transition: opacity 0.35s ease-out;
   }
 
+  /*
+   * Where the border area can paint a background, the ring is not a mask.
+   *
+   * Masks are not among the properties that follow corner-shape (backgrounds,
+   * borders, outlines, shadows, overflow and backdrop-filter are). On the
+   * squircle corners the mask above is cut along plain circular arcs that no
+   * longer match the border being drawn underneath, so the shimmer visibly
+   * detaches at every corner.
+   *
+   * Instead the ::after carries a transparent 2px border of its own and its
+   * gradient is clipped to that border area -- `border-area` ignores the
+   * border-color's transparency, so the full gradient paints in the band and
+   * nowhere else. Backgrounds do follow corner-shape, and index.css sets
+   * `corner-shape: inherit` on the ::after, so the ring tracks the exact shape
+   * the border draws, including through the expansion's shape interpolation.
+   *
+   * The band lands in the same place the mask left it: inset: 0 already seats
+   * the ::after just inside the block's own border, and its border area is the
+   * 2px immediately inside that. The mask rule above stays as the fallback for
+   * engines without `border-area` -- which are the same engines without
+   * corner-shape, where the ring still matches the corners.
+   */
+  @supports (background-clip: border-area) {
+    .block::after {
+      border: 2px solid transparent;
+      background-origin: border-box;
+      background-clip: border-area;
+      -webkit-background-clip: border-area;
+      -webkit-mask: none;
+      mask: none;
+    }
+  }
+
   .block h2,
   .block h3 {
     margin: 0;
@@ -582,10 +620,8 @@
 
     /*
      * Pill-shaped while the row is a strip of tabs, squarer once it expands into
-     * tiles. `--small-radius` carries the per-step value.
-     *
-     * CSS clamps a radius to half the shorter side, so the 10000px value resolves
-     * to a full pill on a 75px-tall box regardless of how large the number is.
+     * tiles. `--small-radius` carries the per-step value, written as the exact
+     * rendered radius per step (see SMALL_RADII) so it interpolates smoothly.
      *
      * Scoped through `.row` to outrank the plain `.block` radius below. Both are
      * single-class selectors, so without the extra class the later rule won and
@@ -660,13 +696,22 @@
    * It has to be repeated here rather than inherited: `.block--small` is a
    * sibling of `.stack .block`, so the stack's transition does not reach it and it
    * would otherwise animate on the shared fast curve from `.block`.
+   *
+   * `corner-shape` is listed even though it is declared from index.css (the
+   * property is too new for svelte-check's component CSS parser, so the
+   * declaration lives in the global sheet). The small blocks carry the squircle
+   * smoothing only once expanded, per the user's request; without a transition
+   * entry the shape would flip discretely at the step boundary while the height
+   * and radius morph smoothly around it. corner-shape interpolates through its
+   * superellipse() values, so the smoothing eases in with the expansion.
    */
   .row .block--small {
     transition:
       opacity 0.7s ease-out,
       transform 1s var(--rise-ease),
       height var(--morph-duration) var(--morph-ease),
-      border-radius var(--morph-duration) var(--morph-ease);
+      border-radius var(--morph-duration) var(--morph-ease),
+      corner-shape var(--morph-duration) var(--morph-ease);
   }
 
   /*
