@@ -1,9 +1,403 @@
-<main class="flex w-full flex-1 flex-col items-center justify-center gap-6">
-  <h1 class="font-display text-6xl leading-tight sm:text-7xl md:text-8xl">we're nmmd studio</h1>
+<script lang="ts">
+  /*
+   * Two flags, because the wordmark plays and then leaves.
+   *
+   * `revealed` turns it on once the loader has cleared. `dismissed` turns it off
+   * again when the visitor scrolls or clicks, so it animates out to give way to
+   * the homepage.
+   */
+  let {
+    revealed = false,
+    dismissed = false,
+    onexit,
+  }: { revealed?: boolean; dismissed?: boolean; onexit?: () => void } = $props();
 
-  <p class="text-xl text-neutral-400 sm:text-2xl">we are an indie design and dev studio</p>
+  /* Seconds the exit takes, reported back so the parent can time what follows. */
+  const EXIT_DURATION = 0.6;
 
-  <p class="absolute bottom-4 w-full px-4 text-sm text-neutral-500">
-    crafting with love from BLR and GNB
-  </p>
-</main>
+  /*
+   * The wordmark resolves from NMMD into NAMMADE. Three letters are inserted at
+   * positions 1, 4 and 6, so the existing letters cannot simply stay where they
+   * are: everything to the right of an insertion has to slide over to open a
+   * slot for it, and the newly added letters slide in from the direction of
+   * that movement.
+   *
+   * Which target positions were already occupied is listed explicitly rather
+   * than inferred from the characters. The two words share every character, so a
+   * set-membership test cannot tell an inserted A from one that was always
+   * there; it has to be positional.
+   */
+  const WORD = 'NAMMADE';
+
+  /* Positions in WORD that already held a letter in NMMD. */
+  const EXISTING = new Set([0, 2, 3, 5]);
+
+  const LETTERS = WORD.split('').map((char, i) => ({
+    char,
+    /* Added letters start hidden and slide in; the rest only shift sideways. */
+    added: !EXISTING.has(i),
+  }));
+
+  /*
+   * Seconds each letter waits before it starts moving, in reading order, and how
+   * long one letter takes to settle.
+   */
+  const LETTER_STAGGER = 0.06;
+  const LETTER_DURATION = 0.55;
+
+  /** Narrowest track an added letter animates open from, as a floor. */
+  const MIN_TRACK = 1;
+
+  /*
+   * The resolve fires after the wordmark line has finished its own reveal, so the
+   * two stages read as sequential rather than as one muddy overlap.
+   */
+  const RESOLVE_AFTER = 0.95;
+
+  let resolved = $state(false);
+  let track = $state<Record<number, number>>({});
+  let measured = $state(false);
+
+  let measureHost: HTMLSpanElement | undefined = $state();
+
+  $effect(() => {
+    if (!revealed) return;
+
+    const timer = setTimeout(() => {
+      resolved = true;
+    }, RESOLVE_AFTER * 1000);
+
+    return () => clearTimeout(timer);
+  });
+
+  /*
+   * The exit is timed here rather than left to the parent to guess, so the two
+   * cannot disagree about how long the wordmark takes to leave.
+   */
+  $effect(() => {
+    if (!dismissed) return;
+
+    const timer = setTimeout(() => {
+      onexit?.();
+    }, EXIT_DURATION * 1000);
+
+    return () => clearTimeout(timer);
+  });
+
+  /*
+   * The added letters animate their width open rather than being offset with a
+   * transform, because it is the width taking up space that pushes the existing
+   * letters along. Their natural width is not knowable in CSS, so it is measured
+   * once from an off-screen copy of the word rendered at full width.
+   *
+   * This has to wait on fonts.ready: measuring before Big Shoulders Text has
+   * loaded would capture the fallback metrics and every letter would open to the
+   * wrong size.
+   */
+  $effect(() => {
+    const host = measureHost;
+    if (!host || measured) return;
+
+    let cancelled = false;
+
+    document.fonts.ready.then(() => {
+      if (cancelled) return;
+
+      const widths: Record<number, number> = {};
+
+      for (const el of host.querySelectorAll<HTMLElement>('[data-measure]')) {
+        const index = Number(el.dataset.measure);
+        widths[index] = Math.max(el.getBoundingClientRect().width, MIN_TRACK);
+      }
+
+      track = widths;
+      measured = true;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+</script>
+
+<div
+  class="landing"
+  class:landing--revealed={revealed}
+  class:landing--resolved={resolved}
+  class:landing--out={dismissed}
+  style="
+    --letter-duration: {LETTER_DURATION}s;
+    --letter-stagger: {LETTER_STAGGER}s;
+    --exit-duration: {EXIT_DURATION}s;
+  "
+>
+  <span class="nmmd" aria-label="NAMMADE">
+    {#each LETTERS as letter, i (i)}
+      <span
+        class="letter"
+        class:letter--added={letter.added}
+        class:letter--measured={measured}
+        style="--i: {i}; --track: {track[i] ?? 0}px"
+        aria-hidden="true"
+      >
+        {letter.char}
+      </span>
+    {/each}
+  </span>
+  <span class="studio" aria-hidden="true">STUDIO</span>
+
+  <!--
+    Off-screen copy of the word at full width, used only to read letter widths.
+    visibility:hidden keeps it out of the accessibility tree and off the paint,
+    but it still lays out, which is what the measurement needs.
+  -->
+  <span class="measure" aria-hidden="true" bind:this={measureHost}>
+    <span class="measure__word">
+      {#each LETTERS as letter, i (i)}
+        <span class="measure__letter" data-measure={i}>{letter.char}</span>
+      {/each}
+    </span>
+  </span>
+</div>
+
+<style>
+  .landing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    /*
+     * Laid out on top of the homepage rather than above it in flow.
+     *
+     * The hero used to occupy its own full-viewport height and the blocks sat
+     * below it. With the page no longer scrolling, that left the blocks off the
+     * bottom of the screen while the hero was still up. Overlaying them means
+     * both are in the same place and the hero simply fades off the top of them.
+     */
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+
+    /* The exit needs a transition to run against. */
+    transition: opacity var(--exit-duration) ease-in;
+
+    /*
+     * Sized so the two lines of ink nearly touch.
+     *
+     * Both words use line-heights below 1, so each carries negative leading that
+     * eats into the gap. Measured at 96px/45px: NMMD's ink extends 13.6px below
+     * its own box, and STUDIO's ink starts 4px above its own box. That is 17.6px
+     * of slack already present, so the flex gap has to be at least that for the
+     * glyphs to stay apart. 1.1rem lands the ink edges on top of each other.
+     *
+     * A negative gap is not usable here: it is invalid CSS, resolves to `normal`
+     * (0), and collapses the lines into each other by a further 17.6px.
+     */
+    gap: 1.1rem;
+    width: 100%;
+    min-height: 100vh;
+    text-align: center;
+  }
+
+  .nmmd,
+  .studio {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 400;
+    color: var(--color-neutral-100);
+
+    /*
+     * Both words start hidden and rise into place. `revealed` is applied on the
+     * container so the two can be staggered off a single state change.
+     */
+    opacity: 0;
+    transform: translateY(0.4em);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /*
+   * The NMMD line is the one that resolves into NAMMADE, so its own reveal
+   * finishes first and the letter sequence gets the stage to itself.
+   */
+  .nmmd {
+    font-family: var(--font-stacked);
+    font-size: clamp(3.5rem, 13vw, 96px);
+    font-weight: 200;
+    line-height: 0.9;
+    letter-spacing: -0.07em;
+  }
+
+  /*
+   * Letters sit in normal flow rather than being absolutely positioned, so the
+   * width an added letter occupies is what pushes its neighbours along. That is
+   * what produces the slide: the existing letters are not animated at all, they
+   * move because the word grows around them.
+   *
+   * inline-block is required for width to apply; a non-replaced inline element
+   * ignores it.
+   */
+  .letter {
+    display: inline-block;
+    white-space: pre;
+  }
+
+  /*
+   * Before measurement there is no width to animate to, so added letters are
+   * simply hidden. Collapsing them to 0 width would already be widening them,
+   * which would show the word mid-transition on first paint.
+   */
+  .landing:not(.landing--resolved) .letter:not(.letter--measured) {
+    display: none;
+  }
+
+  /*
+   * Added letters start transparent and zero-width, then fade and open together.
+   * Opening the width rather than translating is deliberate: a transform would
+   * not displace the letters that follow, so the word would grow by overlap
+   * instead of by the letters actually moving across.
+   */
+  .landing:not(.landing--resolved) .letter--added.letter--measured {
+    opacity: 0;
+    width: 0;
+  }
+
+  /*
+   * The sequence is driven off one class on the container, and each letter waits
+   * its turn via --i so the word assembles left to right. The delay is only
+   * applied once resolved, otherwise every letter would sit on a delay before
+   * the animation had even started.
+   */
+  .landing--resolved .letter {
+    transition:
+      opacity var(--letter-duration) cubic-bezier(0.16, 1, 0.3, 1),
+      width var(--letter-duration) cubic-bezier(0.16, 1, 0.3, 1);
+    /* --i staggers the letters in reading order. */
+    transition-delay: calc(var(--i) * var(--letter-stagger));
+  }
+
+  /*
+   * Off-screen copy used only to read natural letter widths.
+   *
+   * It has to carry the same typography as .nmmd, since a width measured from a
+   * different font or size is not the width the real letter will occupy.
+   */
+  .measure {
+    position: absolute;
+    top: 0;
+    left: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .measure__word {
+    display: block;
+    font-family: var(--font-stacked);
+    font-size: clamp(3.5rem, 13vw, 96px);
+    font-weight: 200;
+    line-height: 0.9;
+    letter-spacing: -0.07em;
+    white-space: nowrap;
+  }
+
+  .measure__letter {
+    display: inline-block;
+  }
+
+  .studio {
+    font-family: var(--font-studio);
+    /*
+     * The vw term has to reach 45px by about a 1400px viewport, otherwise the
+     * clamp resolves below the target size on common desktop widths and the
+     * measured size comes out short.
+     */
+    font-size: clamp(1.25rem, 3.2vw, 45px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.05em;
+  }
+
+  /*
+   * The wordmark line reveals first, then holds while it resolves into NAMMADE.
+   */
+  .landing--revealed .nmmd {
+    opacity: 1;
+    transform: none;
+    transition-delay: 0.15s;
+  }
+
+  .landing--revealed .studio {
+    opacity: 1;
+    transform: none;
+    transition-delay: 0.3s;
+  }
+
+  /*
+   * The resolve itself is withheld until NMMD has finished arriving (see
+   * RESOLVE_AFTER), so the letters begin staggered from zero rather than from a
+   * second delay stacked on top of that timer.
+   */
+  .landing--resolved .letter {
+    opacity: 1;
+    width: var(--track);
+  }
+
+  /*
+   * The exit.
+   *
+   * The hero fades in place. It is deliberately not moved: the wordmark is
+   * meant to dissolve where it stands rather than travel, and translating it
+   * upward read as the page scrolling under a still-visible heading.
+   */
+  .landing--out {
+    opacity: 0;
+    transform: none;
+    transition: opacity var(--exit-duration) ease-in;
+
+    /*
+     * Released once invisible.
+     *
+     * The hero is an overlay, so it does not push the blocks down, but it would
+     * still sit on top of them and swallow their clicks. Taking it out of the way
+     * stops it becoming an invisible wall over the homepage.
+     */
+    pointer-events: none;
+  }
+
+  /*
+   * Reduced motion shows the finished wordmark outright: no reveal, no
+   * letter-by-letter sequence. The added letters are always at full width here,
+   * because the sequence is what would otherwise be hiding them.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .nmmd,
+    .studio {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+
+    .landing:not(.landing--resolved) .letter:not(.letter--measured) {
+      display: none;
+    }
+
+    .landing:not(.landing--resolved) .letter--added.letter--measured {
+      opacity: 1;
+      width: var(--track);
+    }
+
+    .landing--resolved .letter {
+      opacity: 1;
+      width: var(--track);
+      transition: none;
+    }
+
+    /* Fades and collapses only: the drift and scale are the motion removed. */
+    .landing--out {
+      transform: none;
+      transition: opacity 0.2s linear;
+    }
+  }
+</style>

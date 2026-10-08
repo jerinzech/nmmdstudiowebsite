@@ -1,8 +1,20 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-display: 'Borel', cursive;
+  --font-display: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* Big Shoulders Text, for the stacked wordmark. */
+  --font-stacked: 'Big Shoulders Text', 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /*
+   * SF Pro is an Apple system font with no web distribution, so it is referenced
+   * by name and left to the OS. On non-Apple platforms this falls through the
+   * stack to the generic sans below rather than failing silently.
+   */
+  --font-studio:
+    'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 @layer base {
@@ -11,11 +23,85 @@
   }
 
   body {
-    @apply bg-neutral-900 text-neutral-100 antialiased;
+    @apply bg-neutral-950 text-neutral-100 antialiased;
     margin: 0;
+    min-height: 100vh;
+    /* Stacking context so the backdrop layers cannot escape behind the page. */
+    position: relative;
+    isolation: isolate;
+  }
+
+  /*
+   * Faint colour wash. Black is meant to dominate, so these sit low enough to
+   * read as a hint of hue in the corners rather than as lit areas of the page.
+   *
+   * The gradients are diffuse and heavily blurred, so what remains is a tint
+   * rather than a shape. Pushing the alphas down and the stops out keeps them off
+   * the centre of the viewport, which is where the wordmark and blocks sit.
+   */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(46% 42% at 22% 26%, rgb(79 70 229 / 0.075), transparent 72%),
+      radial-gradient(42% 38% at 78% 66%, rgb(16 185 129 / 0.055), transparent 72%),
+      radial-gradient(38% 34% at 64% 14%, rgb(217 119 6 / 0.04), transparent 72%),
+      radial-gradient(50% 44% at 50% 92%, rgb(56 189 248 / 0.045), transparent 74%);
+    filter: blur(130px);
+  }
+
+  /*
+   * Film grain over the whole page, sitting above the text so the texture reads
+   * as an emulsion over the render rather than a background pattern. Blend
+   * mode keeps it from washing out the white glyphs.
+   */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    /*
+     * baseFrequency is the inverse of the particle size: dropping it from 0.8
+     * to 0.35 grows the grain into visible clumps rather than fine speckle.
+     * Fewer octaves drops the fine detail on top, which keeps the clumps from
+     * filling back in with high-frequency noise.
+     */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.35' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.16;
+    mix-blend-mode: overlay;
   }
 
   #app {
     min-height: 100vh;
+    /* Lift above the grain layer. */
+    position: relative;
+    z-index: 0;
+  }
+
+  /*
+   * Squircle corners on the three main homepage blocks, matching their 38px
+   * radius with the design's 100% corner smoothing.
+   *
+   * corner-shape carries the smoothing itself, so this is one declaration rather
+   * than a radius plus a hand-tuned approximation. Squircles are a continuous G2
+   * curve; plain border-radius is a quarter-circle.
+   *
+   * Lives here rather than in Blocks.svelte because the property is newer than
+   * the list svelte-check validates component CSS against. Declared in a
+   * component it raises an unknown-property warning that cannot be suppressed
+   * from inside the component. Global CSS is not parsed the same way.
+   *
+   * Wrapped in @supports so browsers without it drop the block cleanly instead
+   * of parsing a declaration they cannot understand. The 38px radius is set on
+   * the blocks regardless, so they stay rounded either way.
+   */
+  @supports (corner-shape: squircle) {
+    .block {
+      corner-shape: squircle;
+    }
   }
 }
