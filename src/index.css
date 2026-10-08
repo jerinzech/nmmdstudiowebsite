@@ -143,6 +143,18 @@
       corner-shape: inherit;
     }
   }
+
+  /*
+   * Below the same 40rem breakpoint Blocks.svelte uses, the small row is pinned
+   * to 3.5rem pills at every step; squircle smoothing applied to a full pill
+   * distorts the stadium, so the smoothing stays off there and the row keeps
+   * plain round ends at all stages.
+   */
+  @media (max-width: 40rem) {
+    .row--expanded .block--small {
+      corner-shape: round;
+    }
+  }
 }
 
 /*

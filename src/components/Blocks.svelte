@@ -26,19 +26,54 @@
   const MAX_WIDTH = 1400;
 
   /*
-   * Block heights per scroll step, in px.
+   * Block heights per scroll step for the desktop column, in px.
    *
    * Step 0 is the first impression: one tall block over two thin strips. Step 1
    * moves height from block 1 into block 2. Step 2 flattens both of those and
    * hands the height to block 3. Step 3 gives the height back to block 1 and
    * hands the column over to the row of small blocks below.
    */
-  const HEIGHTS = [
+  const DESKTOP_HEIGHTS = [
     [700, 50, 50],
     [200, 550, 50],
     [200, 200, 400],
     [500, 50, 50],
   ] as const;
+
+  /*
+   * The same four stages, authored for the narrow column: shorter throughout
+   * so the tallest step still fits the 85vh body on a phone, while keeping the
+   * strip heights and the tall/strip pattern of the desktop table — which is
+   * what the shared RADII table and the short-title behaviour key off. Block 1
+   * stays above the compact threshold in stages 1 and 4 and below it in 2 and
+   * 3, matching the desktop rhythm.
+   */
+  const MOBILE_HEIGHTS = [
+    [350, 50, 50],
+    [140, 270, 50],
+    [140, 140, 270],
+    [340, 50, 50],
+  ] as const;
+
+  /*
+   * Below 40rem the mobile table is used — the same breakpoint as the small
+   * row's media query in the styles below, so the row's pinned pills and the
+   * shorter stages switch together.
+   */
+  const NARROW = '(max-width: 40rem)';
+
+  let narrow = $state(matchMedia(NARROW).matches);
+
+  $effect(() => {
+    const query = matchMedia(NARROW);
+    const update = () => (narrow = query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  });
+
+  /** The active table: the desktop column, or the shorter mobile one. */
+  const HEIGHTS = $derived(narrow ? MOBILE_HEIGHTS : DESKTOP_HEIGHTS);
 
   /** The design's tile corner: every block's radius when it is not a pill. */
   const TILE_RADIUS = 40;
@@ -1021,6 +1056,54 @@
 
     .to-top--in {
       transform: none;
+    }
+  }
+
+  /*
+   * Narrow-column overrides, at the same 40rem breakpoint the small row and
+   * the MOBILE_HEIGHTS table use. Declared last so they win over every base
+   * rule above at equal specificity.
+   *
+   * The shorter mobile stages are not proportionally scaled desktop stages —
+   * the text keeps legible sizes, so the measurements around it are reauthored
+   * rather than multiplied: the greeting and its offsets shrink to fit the
+   * shorter block 1, the strips take a tighter left padding, and the
+   * take-to-the-top button comes down from its 100px square.
+   */
+  @media (max-width: 40rem) {
+    .block--short {
+      padding: 0 0 0 2rem;
+    }
+
+    /* Full greeting: 56px, half of it plus a 1rem gap to the subtitle. */
+    .block__hey {
+      font-size: 3.5rem;
+    }
+
+    .block--work .block__tagline {
+      font-size: 1rem;
+      top: calc(50% + 2.75rem);
+    }
+
+    /* Compact greeting: 32px, parked nearer the edge than the desktop's
+       100px, with the offsets recomputed for the shorter block 1. */
+    .block--work.block--compact .block__hey {
+      font-size: 2rem;
+      left: 2rem;
+    }
+
+    .block--work.block--compact .block__tagline {
+      font-size: 1rem;
+      top: calc(50% + 1.5rem);
+      left: 2rem;
+    }
+
+    .to-top {
+      width: 4rem;
+      height: 4rem;
+      border-radius: 1rem;
+      right: 1.25rem;
+      bottom: 1.25rem;
     }
   }
 </style>
