@@ -15,17 +15,20 @@
 
 <style>
   /*
-   * The third of the three constant sections: 5vh of the spec's 15/80/5
+   * The third of the three constant sections: 5vh of the spec's 10/85/5
    * split, in flow at the bottom of the page column, below the body. Nothing
    * is pinned over anything, so there is no z-index to manage and no clicks to
-   * intercept — the body is sized to its own 80vh and the two can never meet.
+   * intercept — the body is sized to its own 85vh and the two can never meet.
+   * dvh keeps the band above the mobile browser's collapsed address sheet,
+   * where vh would run underneath it.
    *
-   * The closing line is centred within the 5vh; vertical padding is off so the
-   * text cannot overflow the small band, and flex-shrink is off so a short
-   * viewport never squeezes it.
+   * The closing line is centred within the band; vertical padding is off so the
+   * text cannot overflow it, and flex-shrink is off so a short viewport never
+   * squeezes it.
    */
   .footer {
     height: 5vh;
+    height: 5dvh;
     display: grid;
     place-items: center;
     flex-shrink: 0;

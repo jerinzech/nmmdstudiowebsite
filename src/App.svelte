@@ -68,6 +68,17 @@
   });
 
   /*
+   * The stage is the scroll position, so a reload must not let the browser
+   * restore the previous scroll — that would land the page mid-runway on a
+   * later stage. Restoration is taken over manually and every load starts at
+   * the top, which is stage 1.
+   */
+  $effect(() => {
+    history.scrollRestoration = 'manual';
+    scrollTo(0, 0);
+  });
+
+  /*
    * Clicking the navbar logo takes the homepage back to stage 1, exactly like
    * the take-to-the-top button. A counter rather than a boolean so every click
    * requests a reset, not just the first; Blocks performs the same one-jump
@@ -113,32 +124,45 @@
 </main>
 
 <style>
+  /*
+   * The runway: one viewport of scroll per stage. #mainapp is four viewports
+   * tall (the four stages live in Blocks.svelte's HEIGHTS table), and the
+   * sticky .page below pins at the top while this height scrolls underneath —
+   * so the visitor scrolls the stages in and out while the column stays on
+   * screen. Blocks.svelte maps the scroll position to the stage and eases to
+   * the nearest boundary once the scrolling settles.
+   *
+   * dvh over vh: the dynamic viewport tracks the space the mobile browser's
+   * collapsed address bar and notification sheet actually leave, where vh
+   * runs underneath them.
+   */
   #mainapp {
     position: relative;
     width: 100%;
-    height: 100vh;
-
-    /*
-     * The page does not scroll. Gestures drive the stages instead, so there is
-     * nothing to scroll to, and any overflow here would show as a stray
-     * scrollbar.
-     */
-    overflow: hidden;
+    height: 400vh;
+    height: 400dvh;
   }
 
   /*
    * The homepage is three constant sections stacked in one column: navbar,
-   * body, footer — 10vh / 85vh / 5vh, summing to the 100vh above. Each is in
+   * body, footer — 10vh / 85vh / 5vh, summing to a full viewport. Each is in
    * flow with an explicit height, so none can ever overlap another.
    *
-   * The landing hero is the one exception by design: it is a transient overlay
-   * (position: absolute inset: 0 in its own component), covering all three
-   * only while the wordmark plays, then it leaves.
+   * Sticky, not fixed: the column rides at the top of the runway and never
+   * leaves its container, so the final stage scrolls it only as far as the
+   * runway's end.
+   *
+   * The landing hero is the one exception by design: it is a transient fixed
+   * overlay in its own component, covering all three only while the wordmark
+   * plays, then it leaves.
    */
   .page {
+    position: sticky;
+    top: 0;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: 100vh;
+    height: 100dvh;
   }
 
   /* DEBUG: the layout-guidelines toggle; see the state comment above. */

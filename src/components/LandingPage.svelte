@@ -170,12 +170,18 @@
     /*
      * Laid out on top of the homepage rather than above it in flow.
      *
+     * Fixed to the viewport rather than absolutely placed in the page: the
+     * page is a scroll runway (the stages are the scroll position in
+     * Blocks.svelte), so an absolute hero would ride up with the first scroll
+     * instead of standing still while it fades. Fixed, the wordmark dissolves
+     * where it is and the scrolling stage beneath takes over.
+     *
      * The hero used to occupy its own full-viewport height and the blocks sat
-     * below it. With the page no longer scrolling, that left the blocks off the
-     * bottom of the screen while the hero was still up. Overlaying them means
-     * both are in the same place and the hero simply fades off the top of them.
+     * below it, which left the blocks off the bottom of the screen while the
+     * hero was still up. Overlaying them means both are in the same place and
+     * the hero simply fades off the top of them.
      */
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 10;
 

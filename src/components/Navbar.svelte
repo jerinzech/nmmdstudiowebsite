@@ -21,7 +21,7 @@
       aria-label="NMMD home"
       tabindex={revealed ? 0 : -1}
       onclick={(event) => {
-        /* The page does not scroll; the click takes the stages back to 1. */
+        /* The click glides the runway's scroll back to stage 1. */
         event.preventDefault();
         onlogo?.();
       }}
@@ -34,15 +34,18 @@
 <style>
   /*
    * The first of the three constant sections: in flow at the top of the page
-   * column, above the body, at the spec's 10vh. No background, border or blur:
-   * the bar is the logo and nothing else, so the page's black reads through it
-   * uninterrupted and the backdrop is not broken up by a floating panel.
+   * column, above the body, at the spec's 10vh. dvh tracks the space the
+   * mobile browser's collapsed address bar leaves, where vh would run
+   * underneath it. No background, border or blur: the bar is the logo and
+   * nothing else, so the page's black reads through it uninterrupted and the
+   * backdrop is not broken up by a floating panel.
    *
    * The section itself centres the bar, so the logo lands mid-section rather
    * than pinned under the top edge.
    */
   .nav {
     height: 10vh;
+    height: 10dvh;
     display: grid;
     place-items: center;
   }

@@ -160,16 +160,6 @@
    */
   const MORPH_DURATION = 1.2;
   const MORPH_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
-  /*
-   * Milliseconds a gesture must settle before the next one counts.
-   *
-   * A wheel event arrives as a burst of deltas, not a single press, so without
-   * this one flick of the wheel would advance several steps at once.
-   *
-   * Matches MORPH_DURATION: any shorter and the next step interrupts a morph that
-   * is still running, which is the discontinuity this is meant to prevent.
-   */
-  const GESTURE_COOLDOWN = MORPH_DURATION * 1000;
 
 
   const BLOCKS = [
@@ -181,64 +171,85 @@
   const SMALL = Array.from({ length: SMALL_COUNT }, (_, i) => ({ id: `s${i}`, label: `Block ${i + 4}` }));
 
   /*
-   * Which step the column is currently showing.
+   * Which stage the column is currently showing.
    *
-   * Steps advance once each as the page scrolls past rather than tracking scroll
-   * continuously, so a block holds its size until the next step instead of
-   * resizing under the cursor.
+   * The stage comes from the scroll position: App.svelte lays the page out as
+   * a runway one viewport per stage, so each stage of scroll moves the column
+   * on by exactly one step — a block holds its size until the next boundary
+   * instead of resizing under the cursor.
    */
   let step = $state(0);
 
-  /**
-   * Scroll is read inside a rAF rather than in the handler itself, so a fast
-   * scroll cannot queue more style writes than the browser will paint.
-   */
-  let locked = false;
+  /** Scrollable distance per stage: a viewport's worth of runway. */
+  const stepSpan = () =>
+    (document.documentElement.scrollHeight - window.innerHeight) / (HEIGHTS.length - 1);
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  /** Adopt the stage the scroll position sits in, rounding to the nearest. */
+  const applyStep = () => {
+    const next = Math.min(
+      Math.max(0, Math.round(scrollY / stepSpan())),
+      HEIGHTS.length - 1,
+    );
 
-  /*
-   * Advance one step per gesture.
-   *
-   * The page no longer scrolls, so step position cannot come from scroll
-   * geometry. Each settled gesture moves the column on by exactly one step,
-   * forwards or back, and the transition does the rest.
-   */
-  const advance = (direction: 1 | -1) => {
-    if (locked) return;
-
-    const next = Math.min(Math.max(step + direction, 0), HEIGHTS.length - 1);
-
-    if (next === step) return;
-
-    step = next;
-    lock();
+    if (next !== step) step = next;
   };
 
   /*
-   * Take-to-the-top: one jump straight back to stage 1.
+   * Once the scrolling settles, ease to the nearest stage boundary.
    *
-   * Rather than stepping back through the stages, the height transition morphs
-   * directly from stage 4's sizes to stage 1's, which reads as the page being
-   * taken back to the top. The same lock applies so a gesture cannot interrupt
-   * the jump halfway.
+   * A wheel notch or a touch flick rarely lands exactly on a boundary, so
+   * without this the column could sit half-way between two stages. The snap
+   * is idempotent — already at the boundary, it does nothing — and the smooth
+   * glide means the arriving stage's morph plays on the way in.
+   */
+  const snap = () => {
+    const target = step * stepSpan();
+    if (Math.abs(scrollY - target) < 2) return;
+
+    scrollTo({ top: target, behavior: 'smooth' });
+  };
+
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  let settleRaf: number | undefined;
+
+  const onScroll = () => {
+    /*
+     * Scroll is read inside a rAF rather than in the handler itself, so a fast
+     * fling cannot queue more style writes than the browser will paint; the
+     * settle timer re-arms on every event so the snap only fires once the
+     * momentum has died down.
+     */
+    if (settleRaf !== undefined) return;
+
+    settleRaf = requestAnimationFrame(() => {
+      settleRaf = undefined;
+      applyStep();
+    });
+
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(snap, 160);
+  };
+
+  /*
+   * Take-to-the-top: glide back to stage 1.
+   *
+   * The scroll position is the stage, so returning to the top is one smooth
+   * scroll to the runway's start — the column morphs down through the stages
+   * on the way, which reads as the page being taken back to the top.
    */
   const toTop = () => {
-    if (locked || step === 0) return;
+    if (step === 0) return;
 
-    step = 0;
-    lock();
+    scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   /*
    * The navbar logo takes the page back to stage 1, like the take-to-the-top
    * button. `reset` is a counter App bumps on each logo click; every change
-   * requests the same one-jump reset, and it starts at 0 so nothing runs on
-   * mount.
+   * requests the same glide, and it starts at 0 so nothing runs on mount.
    *
-   * The reset runs untracked: toTop reads `step` and `locked` to guard
-   * itself, and letting the effect track those would re-fire it on every
-   * stage change — and reset the page a second after each morph.
+   * The reset runs untracked: toTop reads `step` to guard itself, and letting
+   * the effect track it would re-fire the reset on every stage change.
    */
   $effect(() => {
     if (!reset) return;
@@ -246,46 +257,24 @@
     untrack(() => toTop());
   });
 
-  /** Holds further gestures until this step's transition has been seen. */
-  const lock = () => {
-    locked = true;
-
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      locked = false;
-    }, GESTURE_COOLDOWN);
-  };
-
-  const onWheel = (event: WheelEvent) => {
-    /* A trackpad fling fires many small deltas; only a real intent counts. */
-    if (Math.abs(event.deltaY) < 4) return;
-
-    advance(event.deltaY > 0 ? 1 : -1);
-  };
-
-  const onKey = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'PageDown') {
-      advance(1);
-    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'PageUp') {
-      advance(-1);
-    }
-  };
-
   $effect(() => {
     /*
      * Only once the blocks are on screen. The landing page claims the first
-     * gesture to dismiss itself, and these must not also step the blocks while
-     * the hero is still up.
+     * scroll to dismiss itself, and the stages must not also step while the
+     * hero is still up — the position left behind by that dismissing scroll
+     * is adopted once here, then the settle-snap takes over.
      */
     if (!revealed) return;
 
-    window.addEventListener('wheel', onWheel, { passive: true });
-    window.addEventListener('keydown', onKey);
+    applyStep();
+    snap();
+
+    window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
-      window.removeEventListener('wheel', onWheel);
-      window.removeEventListener('keydown', onKey);
-      clearTimeout(timer);
+      window.removeEventListener('scroll', onScroll);
+      clearTimeout(settleTimer);
+      if (settleRaf !== undefined) cancelAnimationFrame(settleRaf);
     };
   });
 
@@ -458,7 +447,8 @@
 
     /*
      * The body of the three constant sections: 85vh of the spec's 10/85/5
-     * split, in flow between the navbar and the footer.
+     * split, in flow between the navbar and the footer. dvh tracks the space
+     * the mobile browser's collapsed address bar leaves.
      *
      * The height is explicit rather than flexed, and overflow is clipped so a
      * column taller than the section can never spill into the footer's region
@@ -468,10 +458,6 @@
      * The centring below is then a single flex box of exactly the body's
      * height, with no offsetting constant to keep in agreement with the
      * navbar.
-     *
-     * The steps are driven by gestures rather than scroll position, so the page
-     * needs no runway. An earlier version reserved several screens of scroll to
-     * advance the steps, which made the whole page scrollable for no reason.
      */
     display: flex;
     flex-direction: column;
@@ -479,6 +465,7 @@
 
     flex: none;
     height: 85vh;
+    height: 85dvh;
     overflow: hidden;
   }
 
