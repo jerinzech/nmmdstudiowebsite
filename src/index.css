@@ -23,6 +23,14 @@
 @layer base {
   html {
     color-scheme: dark;
+
+    /*
+     * The stage engine snaps every gesture to a runway boundary; the browser's
+     * own overscroll answers (Android's pull-to-refresh, the elastic glow)
+     * would fight the glide. Contained at the root, the scroll never leaves
+     * the runway.
+     */
+    overscroll-behavior-y: contain;
   }
 
   body {
@@ -83,6 +91,17 @@
     /* Lift above the grain layer. */
     position: relative;
     z-index: 0;
+  }
+
+  /*
+   * Scroll lock for the intro stages, toggled on <html> from App.svelte.
+   * touch-action alongside overflow: iOS Safari's rubber-banding can still
+   * drag an overflow-hidden document under a finger, and touch-action stops
+   * the gesture from becoming a scroll at all.
+   */
+  html.no-scroll {
+    overflow: hidden;
+    touch-action: none;
   }
 
   /*

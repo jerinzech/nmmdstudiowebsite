@@ -79,6 +79,17 @@
   });
 
   /*
+   * The document is scrollable — that is what drives the stages — but only
+   * once the homepage is up. Through the loader and the hero the scroll is
+   * locked so the intro cannot be scrolled behind, exactly as it was when
+   * the page was sealed; the hero still leaves on the first wheel, touch or
+   * key, and the lock lifts with the homepage.
+   */
+  $effect(() => {
+    document.documentElement.classList.toggle('no-scroll', stage !== 'home');
+  });
+
+  /*
    * Clicking the navbar logo takes the homepage back to stage 1, exactly like
    * the take-to-the-top button. A counter rather than a boolean so every click
    * requests a reset, not just the first; Blocks performs the same one-jump

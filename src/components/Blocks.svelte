@@ -184,10 +184,52 @@
   const stepSpan = () =>
     (document.documentElement.scrollHeight - window.innerHeight) / (HEIGHTS.length - 1);
 
-  /** Adopt the stage the scroll position sits in, rounding to the nearest. */
-  const applyStep = () => {
+  /*
+   * Where the current gesture started, and the stage it started from. The
+   * gesture is consumed against these rather than against the live position,
+   * so momentum cannot carry one flick through more stages than the distance
+   * it actually covers.
+   */
+  let gestureOrigin = 0;
+  let gestureStage = 0;
+
+  /*
+   * True while a programmatic glide is in flight.
+   *
+   * The glide's own scroll events are not gestures. Without this flag,
+   * apply() read the settle glide's motion as a fresh flick and consumed
+   * another stage from it — which started another glide, which consumed
+   * again, and the column cycled through its stages with nobody touching it.
+   * While gliding, input is ignored until the glide arrives; a user flick
+   * that interrupts a glide is walked back to the boundary it was heading
+   * for, and the next gesture after landing counts normally.
+   */
+  let gliding = false;
+
+  let applyRaf: number | undefined;
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /*
+   * The stage is consumed the moment a gesture crosses the intent threshold,
+   * not once the scrolling settles — the morph starts under the gesture, on
+   * the first frames of the movement. Waiting for the momentum to die before
+   * stepping is what made the column feel unresponsive to the scroll.
+   *
+   * Drift smaller than a few percent of a stage is jitter, not intent, and is
+   * ignored; a reversal mid-gesture simply re-targets from the stage the
+   * gesture began at.
+   */
+  const apply = () => {
+    if (gliding) return;
+
+    const span = stepSpan();
+    const delta = scrollY - gestureOrigin;
+
+    if (Math.abs(delta) < span * 0.05) return;
+
+    const covered = Math.max(1, Math.round(Math.abs(delta) / span));
     const next = Math.min(
-      Math.max(0, Math.round(scrollY / stepSpan())),
+      Math.max(0, gestureStage + Math.sign(delta) * covered),
       HEIGHTS.length - 1,
     );
 
@@ -195,52 +237,64 @@
   };
 
   /*
-   * Once the scrolling settles, ease to the nearest stage boundary.
+   * Once the scrolling settles, glide to the boundary of the stage the
+   * gesture consumed. The morph has already started on the way in, so the
+   * settle only finishes the position — the perceived response is the
+   * morph's first frame, not the snap's arrival.
    *
-   * A wheel notch or a touch flick rarely lands exactly on a boundary, so
-   * without this the column could sit half-way between two stages. The snap
-   * is idempotent — already at the boundary, it does nothing — and the smooth
-   * glide means the arriving stage's morph plays on the way in.
+   * Arrival clears the glide flag: within 2px of the boundary the glide is
+   * over and gestures count again, so the flag cannot stick and swallow the
+   * next real flick.
    */
-  const snap = () => {
+  const settle = () => {
     const target = step * stepSpan();
-    if (Math.abs(scrollY - target) < 2) return;
 
-    scrollTo({ top: target, behavior: 'smooth' });
+    if (Math.abs(scrollY - target) < 2) {
+      gliding = false;
+    } else {
+      gliding = true;
+      scrollTo({ top: target, behavior: 'smooth' });
+    }
+
+    gestureOrigin = target;
+    gestureStage = step;
   };
-
-  let settleTimer: ReturnType<typeof setTimeout> | undefined;
-  let settleRaf: number | undefined;
 
   const onScroll = () => {
     /*
-     * Scroll is read inside a rAF rather than in the handler itself, so a fast
-     * fling cannot queue more style writes than the browser will paint; the
-     * settle timer re-arms on every event so the snap only fires once the
-     * momentum has died down.
+     * The position is read inside a rAF rather than in the handler itself, so
+     * a momentum fling cannot queue more step writes than the browser will
+     * paint; the settle timer re-arms on every event so it only fires once
+     * the momentum has died down.
      */
-    if (settleRaf !== undefined) return;
-
-    settleRaf = requestAnimationFrame(() => {
-      settleRaf = undefined;
-      applyStep();
-    });
+    if (applyRaf === undefined) {
+      applyRaf = requestAnimationFrame(() => {
+        applyRaf = undefined;
+        apply();
+      });
+    }
 
     clearTimeout(settleTimer);
-    settleTimer = setTimeout(snap, 160);
+    settleTimer = setTimeout(settle, 120);
   };
 
   /*
    * Take-to-the-top: glide back to stage 1.
    *
    * The scroll position is the stage, so returning to the top is one smooth
-   * scroll to the runway's start — the column morphs down through the stages
-   * on the way, which reads as the page being taken back to the top.
+   * scroll to the runway's start — the column morphs directly from stage 4's
+   * sizes to stage 1's on the way, which reads as the page being taken back
+   * to the top.
    */
   const toTop = () => {
     if (step === 0) return;
 
+    /* The glide back is programmatic: its own events must not be consumed. */
+    gliding = true;
     scrollTo({ top: 0, behavior: 'smooth' });
+    gestureOrigin = 0;
+    gestureStage = 0;
+    step = 0;
   };
 
   /*
@@ -259,22 +313,22 @@
 
   $effect(() => {
     /*
-     * Only once the blocks are on screen. The landing page claims the first
-     * scroll to dismiss itself, and the stages must not also step while the
-     * hero is still up — the position left behind by that dismissing scroll
-     * is adopted once here, then the settle-snap takes over.
+     * Only once the blocks are on screen. App locks the document's scroll
+     * through the loader and the hero, so the runway is at rest at the top —
+     * stage 1 — when the homepage takes over, and the gesture engine owns
+     * every scroll from here.
      */
     if (!revealed) return;
 
-    applyStep();
-    snap();
+    gestureOrigin = 0;
+    gestureStage = 0;
 
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       window.removeEventListener('scroll', onScroll);
       clearTimeout(settleTimer);
-      if (settleRaf !== undefined) cancelAnimationFrame(settleRaf);
+      if (applyRaf !== undefined) cancelAnimationFrame(applyRaf);
     };
   });
 
