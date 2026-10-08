@@ -7,6 +7,9 @@
   /* Big Shoulders Text, for the stacked wordmark. */
   --font-stacked: 'Big Shoulders Text', 'Work Sans', ui-sans-serif, system-ui, sans-serif;
 
+  /* Borel, the hand-set voice of the hero block's greeting. */
+  --font-borel: 'Borel', 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+
   /*
    * SF Pro is an Apple system font with no web distribution, so it is referenced
    * by name and left to the OS. On non-Apple platforms this falls through the
@@ -50,7 +53,7 @@
       radial-gradient(42% 38% at 78% 66%, rgb(16 185 129 / 0.055), transparent 72%),
       radial-gradient(38% 34% at 64% 14%, rgb(217 119 6 / 0.04), transparent 72%),
       radial-gradient(50% 44% at 50% 92%, rgb(56 189 248 / 0.045), transparent 74%);
-    filter: blur(130px);
+    filter: blur(8.125rem);
   }
 
   /*
@@ -107,11 +110,26 @@
    * expansion rather than flipping at the step boundary.
    */
   @supports (corner-shape: squircle) {
-    .block:not(.block--small) {
+    /*
+     * The 100% corner smoothing rides on the tile state: `.block--tiled` is set
+     * from Blocks.svelte exactly when a stack block's radius is the 40px tile
+     * value — row 1 at every step, rows 2 and 3 whenever they are tall — so
+     * pills stay plain round stadiums and the smoothing eases in with the
+     * radius as a strip morphs into a tile.
+     */
+    .block--tiled {
       corner-shape: squircle;
     }
 
     .row--expanded .block--small {
+      corner-shape: squircle;
+    }
+
+    /*
+     * The take-to-the-top button carries the same 100% corner smoothing over
+     * its 1.5625rem radius, matching the blocks' family of corners.
+     */
+    .to-top {
       corner-shape: squircle;
     }
 
@@ -130,105 +148,114 @@
 /*
  * ── DEBUG: layout x-ray ─────────────────────────────────────────────────────
  *
- * Temporary scaffolding for reading the stage/step animations: every
- * structural box is outlined and the major ones carry their selector name as a
- * tag, colour-coded by region.
+ * Temporary scaffolding for finetuning. The whole overlay — outlines, name
+ * tags and size readouts — is gated behind the `xray` class on #mainapp,
+ * which the guides toggle in App.svelte turns on and off; nothing here paints
+ * or positions anything while the class is off.
+ *
+ * Every structural box is outlined and the major ones carry their class name
+ * as a tag, colour-coded by region, with the sizes that drive the morphs read
+ * out of the CSS variables Blocks.svelte sets inline. The readouts flip to the
+ * target value at a step boundary while the box itself transitions, so a tag
+ * shows where a morph is headed.
  *
  * Outlines paint outside layout and the tags are absolutely positioned, so
  * neither adds width or height — the geometry under observation is not
  * disturbed, and both ride along with transforms and height morphs since they
  * are painted with the element itself each frame.
  *
- * Unlayered so it wins over everything above. DELETE THIS WHOLE SECTION when
- * the animations are decoded.
+ * Unlayered so it wins over everything above. DELETE THIS WHOLE SECTION (and
+ * the toggle in App.svelte) when finetuning is done.
  */
 
 /* Faint dashes on every structural element, named or not. */
-#mainapp div,
-#mainapp section,
-#mainapp header,
-#mainapp nav,
-#mainapp footer,
-#mainapp article,
-#mainapp main,
-#mainapp .clone,
-#mainapp .letter,
-#mainapp .letter-mask,
-#mainapp .nmmd,
-#mainapp .studio,
-#mainapp .measure__word,
-#mainapp .measure__letter {
+#mainapp.xray div,
+#mainapp.xray section,
+#mainapp.xray header,
+#mainapp.xray nav,
+#mainapp.xray footer,
+#mainapp.xray article,
+#mainapp.xray .clone,
+#mainapp.xray .letter,
+#mainapp.xray .letter-mask,
+#mainapp.xray .nmmd,
+#mainapp.xray .studio,
+#mainapp.xray .measure__word,
+#mainapp.xray .measure__letter {
   outline: 1px dashed rgb(255 255 255 / 0.25);
   outline-offset: -1px;
 }
 
 /* Named boxes, solid and colour-coded: app yellow, loader/landing rose,
    navbar violet, blocks cyan, small row green, footer pink. */
-#mainapp,
-.page {
+#mainapp.xray,
+#mainapp.xray .page {
   outline: 1px solid rgb(250 204 21 / 0.9);
 }
 
-.loader,
-.landing,
-.nmmd,
-.studio {
+#mainapp.xray .loader,
+#mainapp.xray .landing,
+#mainapp.xray .nmmd,
+#mainapp.xray .studio {
   outline: 1px solid rgb(251 113 133 / 0.9);
 }
 
-.nav,
-.nav__bar,
-.nav__logo {
+#mainapp.xray .nav,
+#mainapp.xray .nav__bar,
+#mainapp.xray .nav__logo {
   outline: 1px solid rgb(167 139 250 / 0.9);
 }
 
-.blocks,
-.column,
-.stack,
-.block {
+#mainapp.xray .blocks,
+#mainapp.xray .column,
+#mainapp.xray .stack,
+#mainapp.xray .block {
   outline: 1px solid rgb(34 211 238 / 0.9);
 }
 
-.row,
-.block--small {
+#mainapp.xray .row,
+#mainapp.xray .block--small {
   outline: 1px solid rgb(74 222 128 / 0.9);
 }
 
-.footer,
-.measure {
+#mainapp.xray .footer,
+#mainapp.xray .measure {
   outline: 1px solid rgb(244 114 182 / 0.9);
 }
 
 /*
- * Anchors for the tags. Everything listed already positions itself except
- * these; .page is safe to relativise because it fills #mainapp exactly, so the
- * .landing overlay anchored to it keeps its geometry.
+ * Anchors for the tags. Everything else that carries one already positions
+ * itself (.loader is fixed, .landing and .measure absolute, .block relative);
+ * these are static boxes, and .page is safe to relativise because it fills
+ * #mainapp exactly, so the .landing overlay keeps its geometry.
  */
-.page,
-.nav__bar,
-.nav__logo,
-.column,
-.stack,
-.row {
+#mainapp.xray .page,
+#mainapp.xray .nav,
+#mainapp.xray .nav__bar,
+#mainapp.xray .nav__logo,
+#mainapp.xray .column,
+#mainapp.xray .stack,
+#mainapp.xray .row,
+#mainapp.xray .footer {
   position: relative;
 }
 
-/* The tag itself: a small name chip at the box's corner. */
-#mainapp::before,
-.page::before,
-.loader::before,
-.nav::before,
-.nav__bar::before,
-.nav__logo::before,
-.landing::before,
-.measure::before,
-.blocks::before,
-.column::before,
-.stack::before,
-.block::before,
-.row::before,
-.footer::before {
-  content: var(--debug-label);
+/* The tag itself: a small name-and-size chip at the box's corner. */
+#mainapp.xray::before,
+#mainapp.xray .page::before,
+#mainapp.xray .loader::before,
+#mainapp.xray .nav::before,
+#mainapp.xray .nav__bar::before,
+#mainapp.xray .nav__logo::before,
+#mainapp.xray .landing::before,
+#mainapp.xray .measure::before,
+#mainapp.xray .blocks::before,
+#mainapp.xray .column::before,
+#mainapp.xray .stack::before,
+#mainapp.xray .row::before,
+#mainapp.xray .footer::before,
+#mainapp.xray .block::before {
+  content: var(--debug-label) var(--debug-size, '');
   position: absolute;
   top: 0;
   left: 0;
@@ -251,35 +278,50 @@
 }
 
 /*
- * Names as the selector they come from, plus the sizes that drive the morphs.
- * The heights and gaps are read from the CSS variables Blocks.svelte sets
- * inline on the elements: they flip to the target value at the step boundary
- * while the boxes visibly transition, so the tag shows where a morph is headed.
+ * Names as the class they come from, plus the size readout where one applies.
+ * The blocks carry one class per element (block--work/studio/contact,
+ * block--s0..s4) so each is individually addressable; the generic rules come
+ * first and the specific ones after, so the later selector wins at equal
+ * specificity.
+ *
+ * --debug-size is set alongside --debug-label so an individually named block
+ * can inherit its size readout from the generic rule and only override the
+ * name. Boxes without a size set nothing and the chip falls back to the name
+ * alone; .nav__bar and .nav__logo pin it to empty so they do not inherit the
+ * navbar section's 10vh readout.
  */
 #mainapp { --debug-label: '#mainapp'; }
 .page { --debug-label: '.page'; }
 .loader { --debug-label: '.loader (fixed)'; }
-.nav { --debug-label: '.nav (sticky)'; }
-.nav__bar { --debug-label: '.nav__bar'; }
-.nav__logo { --debug-label: '.nav__logo'; }
+.nav { --debug-label: '.nav'; --debug-size: ' · 10vh'; }
+.nav__bar { --debug-label: '.nav__bar'; --debug-size: ''; }
+.nav__logo { --debug-label: '.nav__logo'; --debug-size: ''; }
 .landing { --debug-label: '.landing (absolute overlay)'; }
 .measure { --debug-label: '.measure (hidden width reader)'; }
-.blocks { --debug-label: '.blocks · max-w:' var(--max-width); }
-.column { --debug-label: '.column · gap:' var(--section-gap) ' · h:' var(--column-height); }
-.stack { --debug-label: '.stack · gap:' var(--block-gap) ' · h:' var(--stack-height); }
-.block { --debug-label: '.block · h:' var(--height); }
-.block--small { --debug-label: '.block--small · h:' var(--small-height) ' · w:' var(--small-width); }
-.row { --debug-label: '.row · gap:' var(--small-gap) ' · h:' var(--small-height); }
-.footer { --debug-label: '.footer (fixed)'; }
+.blocks { --debug-label: '.blocks'; --debug-size: ' · 85vh · max-w:' var(--max-width); }
+.column { --debug-label: '.column'; --debug-size: ' · gap:' var(--block-gap); }
+.stack { --debug-label: '.stack'; --debug-size: ' · gap:' var(--block-gap) ' · h:' var(--stack-height); }
+.row { --debug-label: '.row'; --debug-size: ' · gap:' var(--small-gap) ' · h:' var(--small-height); }
+.footer { --debug-label: '.footer'; --debug-size: ' · 5vh'; }
+.block { --debug-label: '.block'; --debug-size: ' · h:' var(--height); }
+.block--work { --debug-label: '.block--work'; }
+.block--studio { --debug-label: '.block--studio'; }
+.block--contact { --debug-label: '.block--contact'; }
+.block--small { --debug-label: '.block--small'; --debug-size: ' · h:' var(--small-height) ' · w:' var(--small-width); }
+.block--s0 { --debug-label: '.block--s0'; }
+.block--s1 { --debug-label: '.block--s1'; }
+.block--s2 { --debug-label: '.block--s2'; }
+.block--s3 { --debug-label: '.block--s3'; }
+.block--s4 { --debug-label: '.block--s4'; }
 
 /* Corners staggered so nested tags do not sit on the same spot. */
-#mainapp::before { top: auto; left: auto; bottom: 0; right: 0; }
-.page::before { top: auto; bottom: 0; }
-.nav__bar::before { left: auto; right: 0; }
-.nav__logo::before { top: 100%; }
-.landing::before { left: auto; right: 0; }
-.measure::before { top: auto; bottom: 0; visibility: visible; }
-.column::before { left: auto; right: 0; }
-.stack::before { top: auto; bottom: 0; }
-.block--small::before { top: auto; bottom: 0; }
-.row::before { left: auto; right: 0; }
+#mainapp.xray::before { top: auto; left: auto; bottom: 0; right: 0; }
+#mainapp.xray .page::before { top: auto; bottom: 0; }
+#mainapp.xray .nav__bar::before { left: auto; right: 0; }
+#mainapp.xray .nav__logo::before { top: 100%; }
+#mainapp.xray .landing::before { left: auto; right: 0; }
+#mainapp.xray .measure::before { top: auto; bottom: 0; visibility: visible; }
+#mainapp.xray .column::before { left: auto; right: 0; }
+#mainapp.xray .stack::before { top: auto; bottom: 0; }
+#mainapp.xray .block--small::before { top: auto; bottom: 0; }
+#mainapp.xray .row::before { left: auto; right: 0; }

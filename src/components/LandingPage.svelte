@@ -224,7 +224,7 @@
    */
   .nmmd {
     font-family: var(--font-stacked);
-    font-size: clamp(3.5rem, 13vw, 96px);
+    font-size: clamp(3.5rem, 13vw, 6rem);
     font-weight: 200;
     line-height: 0.9;
     letter-spacing: -0.07em;
@@ -295,7 +295,7 @@
   .measure__word {
     display: block;
     font-family: var(--font-stacked);
-    font-size: clamp(3.5rem, 13vw, 96px);
+    font-size: clamp(3.5rem, 13vw, 6rem);
     font-weight: 200;
     line-height: 0.9;
     letter-spacing: -0.07em;
@@ -309,11 +309,11 @@
   .studio {
     font-family: var(--font-studio);
     /*
-     * The vw term has to reach 45px by about a 1400px viewport, otherwise the
-     * clamp resolves below the target size on common desktop widths and the
+     * The vw term has to reach 2.8125rem by about an 87.5rem viewport, otherwise
+     * the clamp resolves below the target size on common desktop widths and the
      * measured size comes out short.
      */
-    font-size: clamp(1.25rem, 3.2vw, 45px);
+    font-size: clamp(1.25rem, 3.2vw, 2.8125rem);
     font-weight: 700;
     line-height: 1;
     letter-spacing: -0.05em;

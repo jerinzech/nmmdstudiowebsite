@@ -9,16 +9,16 @@
   const DURATION = 4.8
 
   /*
-   * Distance between one clone and the next, in px. Clones are offset by
+   * Distance between one clone and the next, in rem. Clones are offset by
    * multiples of this: depth 1 travels STEP, depth 2 travels 2 * STEP, and so
    * on.
    *
    * This is measured between the clones, independent of the line box. The glyphs
-   * of the word occupy roughly 113px of ink at this size, so a small step keeps
+   * of the word occupy roughly 7rem of ink at this size, so a small step keeps
    * every clone reading as part of one overlapping mass rather than as
    * separate lines of text.
    */
-  const STEP = 12
+  const STEP = 0.75
 
   /*
    * One clone anchors the centre. The rest fan out in two groups of three, each
@@ -121,7 +121,7 @@
       class:clone--up={clone.dir === 'up'}
       class:clone--down={clone.dir === 'down'}
       style="
-        --travel: {(clone.dir === 'up' ? -1 : 1) * clone.depth * STEP}px;
+        --travel: {(clone.dir === 'up' ? -1 : 1) * clone.depth * STEP}rem;
         --duration: {DURATION}s;
         --delay: {INTRO + i * MOVER_STAGGER}s;
         --reveal: {REVEAL_DURATION}s;
@@ -165,7 +165,7 @@
   .clone {
     grid-area: 1 / 1;
     font-family: var(--font-display);
-    font-size: clamp(3rem, 14vw, 90px);
+    font-size: clamp(3rem, 14vw, 5.625rem);
     font-weight: 400;
     font-stretch: 75%;
     line-height: 1;

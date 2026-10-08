@@ -7,12 +7,25 @@
    * has gone means the logo is the first thing seen of the homepage rather than
    * something that was already there behind everything.
    */
-  let { revealed = false }: { revealed?: boolean } = $props();
+  let {
+    revealed = false,
+    onlogo,
+  }: { revealed?: boolean; onlogo?: () => void } = $props();
 </script>
 
 <header class="nav" class:nav--in={revealed}>
   <nav class="nav__bar">
-    <a class="nav__logo" href="#top" aria-label="NMMD home" tabindex={revealed ? 0 : -1}>
+    <a
+      class="nav__logo"
+      href="#top"
+      aria-label="NMMD home"
+      tabindex={revealed ? 0 : -1}
+      onclick={(event) => {
+        /* The page does not scroll; the click takes the stages back to 1. */
+        event.preventDefault();
+        onlogo?.();
+      }}
+    >
       NMMD
     </a>
   </nav>
@@ -20,19 +33,18 @@
 
 <style>
   /*
-   * No background, border or blur: the bar is the logo and nothing else, so the
-   * page's black reads through it uninterrupted and the backdrop is not broken up
-   * by a floating panel at the top of every screen.
+   * The first of the three constant sections: in flow at the top of the page
+   * column, above the body, at the spec's 10vh. No background, border or blur:
+   * the bar is the logo and nothing else, so the page's black reads through it
+   * uninterrupted and the backdrop is not broken up by a floating panel.
    *
-   * pointer-events stays off on the strip so it never swallows clicks meant for
-   * the content scrolling underneath; the logo alone takes them back.
+   * The section itself centres the bar, so the logo lands mid-section rather
+   * than pinned under the top edge.
    */
   .nav {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    width: 100%;
-    pointer-events: none;
+    height: 10vh;
+    display: grid;
+    place-items: center;
   }
 
   .nav__bar {
@@ -48,13 +60,12 @@
    */
   .nav__logo {
     font-family: var(--font-stacked);
-    font-size: 50px;
+    font-size: 3.125rem;
     font-weight: 200;
     line-height: 1;
     letter-spacing: -0.05em;
     color: var(--color-neutral-100);
     text-decoration: none;
-    pointer-events: auto;
 
     opacity: 0;
     transform: translateY(-0.75rem);
@@ -105,8 +116,8 @@
 
   .nav__logo:focus-visible {
     background-position: 0% 0;
-    outline: 2px solid var(--color-neutral-100);
-    outline-offset: 4px;
+    outline: 0.125rem solid var(--color-neutral-100);
+    outline-offset: 0.25rem;
   }
 
   @media (prefers-reduced-motion: reduce) {

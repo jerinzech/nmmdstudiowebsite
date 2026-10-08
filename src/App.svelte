@@ -66,13 +66,35 @@
 
     return () => clearTimeout(timer);
   });
+
+  /*
+   * Clicking the navbar logo takes the homepage back to stage 1, exactly like
+   * the take-to-the-top button. A counter rather than a boolean so every click
+   * requests a reset, not just the first; Blocks performs the same one-jump
+   * reset whenever it changes.
+   */
+  let logoResets = $state(0);
+
+  /*
+   * DEBUG: the toggle for the layout guidelines.
+   *
+   * `guides` gates the `xray` class on #mainapp; the whole overlay — borders,
+   * names and size readouts — lives under that class in the DEBUG section of
+   * index.css and paints and positions nothing while it is off. Fixed to the
+   * viewport's top-left corner above every layer, so it stays reachable
+   * through every stage.
+   *
+   * Delete the state, the class:xray, the button and its rule, and the x-ray
+   * section in index.css together when finetuning is done.
+   */
+  let guides = $state(true);
 </script>
 
-<main id="mainapp">
+<main id="mainapp" class:xray={guides}>
   <LoadingPage oncomplete={() => (stage = 'landing')} />
 
   <div class="page">
-    <Navbar revealed={stage === 'home'} />
+    <Navbar revealed={stage === 'home'} onlogo={() => (logoResets += 1)} />
 
     <LandingPage
       revealed={stage !== 'loading'}
@@ -80,9 +102,14 @@
       onexit={() => (stage = 'home')}
     />
 
-    <Blocks revealed={stage === 'home'} />
+    <Blocks revealed={stage === 'home'} reset={logoResets} />
     <Footer revealed={stage === 'home'} />
   </div>
+
+  <!-- DEBUG: layout-guidelines toggle; see the state comment above. -->
+  <button class="guides" onclick={() => (guides = !guides)} aria-pressed={guides}>
+    guides {guides ? 'on' : 'off'}
+  </button>
 </main>
 
 <style>
@@ -100,13 +127,35 @@
   }
 
   /*
-   * The landing page is a full-height hero, and the blocks follow it. Without a
-   * spacer the blocks would start life already scrolled into view, which would
-   * make the scroll-driven size steps start partway through.
+   * The homepage is three constant sections stacked in one column: navbar,
+   * body, footer — 10vh / 85vh / 5vh, summing to the 100vh above. Each is in
+   * flow with an explicit height, so none can ever overlap another.
+   *
+   * The landing hero is the one exception by design: it is a transient overlay
+   * (position: absolute inset: 0 in its own component), covering all three
+   * only while the wordmark plays, then it leaves.
    */
   .page {
     display: flex;
     flex-direction: column;
     height: 100%;
+  }
+
+  /* DEBUG: the layout-guidelines toggle; see the state comment above. */
+  .guides {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 10000;
+
+    padding: 0.25rem 0.625rem;
+    border: 0.0625rem solid rgb(255 255 255 / 0.3);
+    border-radius: 0.375rem;
+    background: rgb(0 0 0 / 0.6);
+    color: rgb(255 255 255 / 0.85);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    cursor: pointer;
   }
 </style>

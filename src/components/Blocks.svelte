@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   /*
    * The homepage is a fixed column of frosted blocks that change size as the page
    * is scrolled.
@@ -7,7 +9,19 @@
    * current step out of it, so a step is only ever written down once and the
    * three blocks cannot drift out of agreement with each other.
    */
-  let { revealed = false }: { revealed?: boolean } = $props();
+  let {
+    revealed = false,
+    reset = 0,
+  }: { revealed?: boolean; reset?: number } = $props();
+
+  /*
+   * The size tables below are authored in px, the design spec's unit, but every
+   * measurement that reaches the stylesheet is emitted in rem through this
+   * helper, so the whole column scales with the root font size and the layout
+   * is truly responsive rather than locked to a 16px root.
+   */
+  const PX_PER_REM = 16;
+  const rem = (px: number) => `${px / PX_PER_REM}rem`;
 
   const MAX_WIDTH = 1400;
 
@@ -21,22 +35,55 @@
    */
   const HEIGHTS = [
     [700, 50, 50],
-    [200, 500, 50],
+    [200, 550, 50],
     [200, 200, 400],
-    [400, 50, 50],
+    [500, 50, 50],
   ] as const;
 
-  const BLOCK_GAP = 15;
-  const SMALL_GAP = 20;
+  /** The design's tile corner: every block's radius when it is not a pill. */
+  const TILE_RADIUS = 40;
 
   /*
-   * Gap between the stack and the small row, per step.
+   * The strip pill: exactly half the 50px strip height, which is the full pill.
    *
-   * The first three steps hold it wide at 50px to separate the two groups. The
-   * final step closes it to 15px so all four rows sit on one rhythm, matching the
-   * gaps between the three main blocks.
+   * Written as the honest rendered value rather than a huge number the browser
+   * would clamp into the same pill. Either renders identically at rest, but
+   * only this one interpolates: transitioning a huge number down to 40 leaves
+   * the rendered radius riding the clamp at half the box, then snapping in the
+   * final frames of the morph.
    */
-  const SECTION_GAPS = [50, 50, 50, 15] as const;
+  const PILL_RADIUS = 25;
+
+  /*
+   * Corner radius per step for the stack blocks, aligned row-for-row with
+   * HEIGHTS.
+   *
+   * Row 1 (work) is a 40px tile at every step. Rows 2 and 3 are pills while
+   * they are strips and tiles of 40px whenever they are tall, so their radius
+   * travels with their height at each step change.
+   */
+  const RADII = [
+    [TILE_RADIUS, PILL_RADIUS, PILL_RADIUS],
+    [TILE_RADIUS, TILE_RADIUS, PILL_RADIUS],
+    [TILE_RADIUS, TILE_RADIUS, TILE_RADIUS],
+    [TILE_RADIUS, PILL_RADIUS, PILL_RADIUS],
+  ] as const;
+
+  /*
+   * The greeting's compact state: below this height on block 1 the greeting
+   * shrinks to 48px and parks left. Block 1 stands at 200px in stages 2 and 3
+   * and at 700px and 500px in stages 1 and 4, so this is the boundary between
+   * the compact and the full-size greeting.
+   */
+  const WORK_COMPACT_HEIGHT = 300;
+
+  /*
+   * The body is four rows: the three stack blocks and the small row, all
+   * sharing one vertical rhythm of 1rem (16px authored, emitted as rem below)
+   * — the gap is the same at every step.
+   */
+  const BLOCK_GAP = 16;
+  const SMALL_GAP = 20;
 
   const SMALL_COUNT = 5;
   const SMALL_WIDTH = 250;
@@ -49,28 +96,9 @@
    */
   const SMALL_HEIGHTS = [75, 75, 75, 250] as const;
 
-  /**
-   * Height the navbar occupies.
-   *
-   * The blocks column is pinned, and the navbar is sticky above it. Without
-   * offsetting the pin by this much, the top of the column sat behind the navbar
-   * and scrolled under the logo.
-   */
-  const NAV_HEIGHT = 98;
-
   /** Height of a step's stack: its blocks plus the gaps between them. */
   const stackHeightFor = (i: number) =>
     HEIGHTS[i].reduce((a, b) => a + b, 0) + BLOCK_GAP * (HEIGHTS[i].length - 1);
-
-  /**
-   * Height of the whole column at a given step: the stack, the section gap, and
-   * the small row as it stands in that step.
-   *
-   * Per-step rather than one worst-case figure. Measuring only the tallest step
-   * and scaling to that shrank every step by the worst case's proportions, so a
-   * 400px block rendered at 275px and the 250px squares came out at 172px.
-   */
-  const columnHeightFor = (i: number) => stackHeightFor(i) + SECTION_GAPS[i] + SMALL_HEIGHTS[i];
 
 
   /*
@@ -127,15 +155,6 @@
   let step = $state(0);
 
   /**
-   * Tallest column across all steps.
-   *
-   * The sticky column is measured per step so each is centred in its own height,
-   * but the runway has to be sized for the tallest one or the page runs out of
-   * scroll while the last step is still on screen.
-   */
-  const TALLEST_COLUMN = Math.max(...HEIGHTS.map((_, i) => columnHeightFor(i)));
-
-  /**
    * Scroll is read inside a rAF rather than in the handler itself, so a fast
    * scroll cannot queue more style writes than the browser will paint.
    */
@@ -160,6 +179,37 @@
     step = next;
     lock();
   };
+
+  /*
+   * Take-to-the-top: one jump straight back to stage 1.
+   *
+   * Rather than stepping back through the stages, the height transition morphs
+   * directly from stage 4's sizes to stage 1's, which reads as the page being
+   * taken back to the top. The same lock applies so a gesture cannot interrupt
+   * the jump halfway.
+   */
+  const toTop = () => {
+    if (locked || step === 0) return;
+
+    step = 0;
+    lock();
+  };
+
+  /*
+   * The navbar logo takes the page back to stage 1, like the take-to-the-top
+   * button. `reset` is a counter App bumps on each logo click; every change
+   * requests the same one-jump reset, and it starts at 0 so nothing runs on
+   * mount.
+   *
+   * The reset runs untracked: toTop reads `step` and `locked` to guard
+   * itself, and letting the effect track those would re-fire it on every
+   * stage change — and reset the page a second after each morph.
+   */
+  $effect(() => {
+    if (!reset) return;
+
+    untrack(() => toTop());
+  });
 
   /** Holds further gestures until this step's transition has been seen. */
   const lock = () => {
@@ -289,21 +339,16 @@
   class:blocks--in={revealed}
   class:blocks--entered={entered}
   style="
-    --max-width: {MAX_WIDTH}px;
-    --block-gap: {BLOCK_GAP}px;
-    --small-gap: {SMALL_GAP}px;
-    --section-gap: {SECTION_GAPS[step]}px;
-    --small-width: {SMALL_WIDTH}px;
-    --small-height: {SMALL_HEIGHTS[step]}px;
-    --small-radius: {SMALL_RADII[step]}px;
+    --max-width: {rem(MAX_WIDTH)};
+    --block-gap: {rem(BLOCK_GAP)};
+    --small-gap: {rem(SMALL_GAP)};
+    --small-width: {rem(SMALL_WIDTH)};
+    --small-height: {rem(SMALL_HEIGHTS[step])};
+    --small-radius: {rem(SMALL_RADII[step])};
     --rise-ease: {RISE_EASE};
     --morph-duration: {MORPH_DURATION}s;
     --morph-ease: {MORPH_EASE};
-    --step-count: {HEIGHTS.length};
-    --stack-height: {stackHeightFor(step)}px;
-    --column-height: {columnHeightFor(step)}px;
-    --tallest-column: {TALLEST_COLUMN}px;
-    --nav-height: {NAV_HEIGHT}px;
+    --stack-height: {rem(stackHeightFor(step))};
   "
   bind:this={sectionEl}
   onmousemove={onGlowMove}
@@ -314,10 +359,21 @@
     <div class="stack">
     {#each BLOCKS as block, i (block.id)}
       {@const height = HEIGHTS[step][i]}
-      <article class="block" class:block--short={isShort(height)} style="--height: {height}px; --index: {i}">
+      <article
+        class="block block--{block.id}"
+        class:block--short={isShort(height)}
+        class:block--tiled={RADII[step][i] === TILE_RADIUS}
+        class:block--compact={block.id === 'work' && height <= WORK_COMPACT_HEIGHT}
+        style="--height: {rem(height)}; --radius: {rem(RADII[step][i])}; --index: {i}"
+      >
         {#if !isShort(height)}
-          <h2>{block.label}</h2>
-          <p>{block.body}</p>
+          {#if block.id === 'work'}
+            <span class="block__hey">hey !!</span>
+            <p class="block__tagline">we are an indie design and dev studio</p>
+          {:else}
+            <h2 class="block__title">{block.label}</h2>
+            <p class="block__body">{block.body}</p>
+          {/if}
         {/if}
       </article>
       {/each}
@@ -325,12 +381,35 @@
 
     <div class="row" class:row--expanded={step === HEIGHTS.length - 1}>
       {#each SMALL as block, i (block.id)}
-        <article class="block block--small" style="--index: {i}">
-          <h3>{block.label}</h3>
+        <article class="block block--small block--{block.id}" style="--index: {i}">
+          <h3 class="block__title">{block.label}</h3>
         </article>
       {/each}
     </div>
   </div>
+
+  <button
+    class="to-top"
+    class:to-top--in={step === HEIGHTS.length - 1}
+    onclick={toTop}
+    aria-label="Take back to the top"
+    aria-hidden={step !== HEIGHTS.length - 1}
+    tabindex={step === HEIGHTS.length - 1 ? 0 : -1}
+  >
+    <svg
+      viewBox="0 0 24 24"
+      width="2rem"
+      height="2rem"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </svg>
+  </button>
 </section>
 
 <style>
@@ -345,21 +424,29 @@
     padding: 0 1.5rem;
 
     /*
-     * The viewport, minus the navbar's share.
+     * The body of the three constant sections: 85vh of the spec's 10/85/5
+     * split, in flow between the navbar and the footer.
+     *
+     * The height is explicit rather than flexed, and overflow is clipped so a
+     * column taller than the section can never spill into the footer's region
+     * below — on a short viewport the morph content is cut at the section
+     * boundary instead of overlapping the next section.
+     *
+     * The centring below is then a single flex box of exactly the body's
+     * height, with no offsetting constant to keep in agreement with the
+     * navbar.
      *
      * The steps are driven by gestures rather than scroll position, so the page
      * needs no runway. An earlier version reserved several screens of scroll to
      * advance the steps, which made the whole page scrollable for no reason.
-     *
-     * Sized so the column's centring maths is a single flex box with no top
-     * margin to offset: centring is then plain `justify-content: center` and
-     * cannot double-count its own start position.
      */
     display: flex;
     flex-direction: column;
     justify-content: center;
 
-    min-height: calc(100vh - var(--nav-height));
+    flex: none;
+    height: 85vh;
+    overflow: hidden;
   }
 
   /*
@@ -378,8 +465,12 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    gap: var(--section-gap);
-    transition: gap var(--morph-duration) var(--morph-ease);
+
+    /*
+     * The four rows share the block gap's rhythm at every step, so there is
+     * nothing left to transition between steps.
+     */
+    gap: var(--block-gap);
   }
 
   .stack {
@@ -418,10 +509,9 @@
     height: var(--height, auto);
     padding: 1.5rem;
     overflow: hidden;
-    border: 1px solid rgb(255 255 255 / 0.1);
-    border-radius: 0.75rem;
+    border: 0.0625rem solid rgb(255 255 255 / 0.1);
     background: rgb(255 255 255 / 0.05);
-    backdrop-filter: blur(24px);
+    backdrop-filter: blur(1.5rem);
 
     /*
      * The bubble-up entrance.
@@ -442,7 +532,8 @@
       transform 1s var(--rise-ease),
       height var(--morph-duration) var(--morph-ease),
       padding var(--morph-duration) var(--morph-ease),
-      border-radius var(--morph-duration) var(--morph-ease);
+      border-radius var(--morph-duration) var(--morph-ease),
+      corner-shape var(--morph-duration) var(--morph-ease);
   }
 
   .blocks--in .block {
@@ -479,10 +570,10 @@
     border-radius: inherit;
 
     /* The width of the band the mask leaves, so the ring has something to leave. */
-    padding: 2px;
+    padding: 0.0625rem;
 
     background: radial-gradient(
-      360px circle at var(--mouse-x, -9999px) var(--mouse-y, -9999px),
+      22.5rem circle at var(--mouse-x, -9999px) var(--mouse-y, -9999px),
       rgb(255 255 255 / 0.55),
       rgb(255 255 255 / 0.12) 55%,
       transparent 75%
@@ -517,7 +608,7 @@
    * longer match the border being drawn underneath, so the shimmer visibly
    * detaches at every corner.
    *
-   * Instead the ::after carries a transparent 2px border of its own and its
+   * Instead the ::after carries a transparent 0.0625rem border of its own and its
    * gradient is clipped to that border area -- `border-area` ignores the
    * border-color's transparency, so the full gradient paints in the band and
    * nowhere else. Backgrounds do follow corner-shape, and index.css sets
@@ -526,13 +617,13 @@
    *
    * The band lands in the same place the mask left it: inset: 0 already seats
    * the ::after just inside the block's own border, and its border area is the
-   * 2px immediately inside that. The mask rule above stays as the fallback for
-   * engines without `border-area` -- which are the same engines without
+   * 0.0625rem immediately inside that. The mask rule above stays as the fallback
+   * for engines without `border-area` -- which are the same engines without
    * corner-shape, where the ring still matches the corners.
    */
   @supports (background-clip: border-area) {
     .block::after {
-      border: 2px solid transparent;
+      border: 0.0625rem solid transparent;
       background-origin: border-box;
       background-clip: border-area;
       -webkit-background-clip: border-area;
@@ -566,6 +657,85 @@
   }
 
   /*
+   * Block 1 carries the studio greeting.
+   *
+   * Full state (stages 1 and 4): the greeting is Borel at the spec's 100px,
+   * centred both ways in the block, with the Work Sans tagline at 20px and
+   * light weight under it in the body text's softer tone.
+   *
+   * Both lines are absolute and anchored to the block's vertical midpoint —
+   * the greeting dead on it, the subtitle below it, offset by half the
+   * greeting's height plus the gap: 1rem at full size, 0.5rem compact. Their
+   * `50%` terms track the animating block height, and every offset travels on
+   * the block's own morph curve, so the pair glides together through each
+   * stage change — the greeting's move to the left animates exactly like the
+   * subtitle's, with nothing left to flip discretely but the subtitle's own
+   * text wrap.
+   *
+   * Compact state (stages 2 and 3): the greeting shrinks to the spec's 48px
+   * and the pair parks at the left, 100px in from the block's edge, keeping
+   * the vertical centring.
+   */
+  .block--work {
+    text-align: center;
+  }
+
+  .block__hey {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    font-family: var(--font-borel);
+    font-size: 6.25rem;
+    font-weight: 400;
+    line-height: 1;
+    color: var(--color-neutral-100);
+    white-space: nowrap;
+
+    transition:
+      font-size var(--morph-duration) var(--morph-ease),
+      left var(--morph-duration) var(--morph-ease),
+      transform var(--morph-duration) var(--morph-ease);
+  }
+
+  .block--work .block__tagline {
+    position: absolute;
+    top: calc(50% + 4.125rem); /* half the 6.25rem greeting + the 1rem gap */
+    left: 50%;
+    transform: translateX(-50%);
+
+    max-width: none;
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 300;
+    line-height: 1.5;
+    color: var(--color-neutral-400);
+
+    transition:
+      top var(--morph-duration) var(--morph-ease),
+      left var(--morph-duration) var(--morph-ease),
+      transform var(--morph-duration) var(--morph-ease);
+  }
+
+  .block--work.block--compact {
+    text-align: left;
+  }
+
+  .block--work.block--compact .block__hey {
+    font-size: 3rem;
+    left: 6.25rem;
+    transform: translate(0, -50%);
+  }
+
+  .block--work.block--compact .block__tagline {
+    top: calc(50% + 2rem); /* half the 3rem greeting + the 0.5rem gap */
+    left: 6.25rem;
+    transform: none;
+  }
+
+  /*
    * Height is transitioned separately from the entrance so the two do not fight:
    * a block resizing between steps should not replay its own entrance delay.
    *
@@ -578,20 +748,24 @@
       transform 1s var(--rise-ease),
       height var(--morph-duration) var(--morph-ease),
       padding var(--morph-duration) var(--morph-ease),
-      border-radius var(--morph-duration) var(--morph-ease);
+      border-radius var(--morph-duration) var(--morph-ease),
+      corner-shape var(--morph-duration) var(--morph-ease);
   }
 
   /*
    * A strip with nothing in it. Padding comes off so the bar reads as a solid
    * band at its tabled height rather than as a thin line inside a padded box.
+   *
+   * The radius is not overridden here: the strip is a pill, and the pill value
+   * reaches it through `--radius` like every other stack block.
    */
   .block--short {
     padding: 0;
-    border-radius: 0.375rem;
     transition:
       height var(--morph-duration) var(--morph-ease),
       padding var(--morph-duration) var(--morph-ease),
-      border-radius var(--morph-duration) var(--morph-ease);
+      border-radius var(--morph-duration) var(--morph-ease),
+      corner-shape var(--morph-duration) var(--morph-ease);
   }
 
   .row {
@@ -640,20 +814,21 @@
    * through itself, so the page arrives in two readable stages.
    */
   /*
-   * Every block carries the design's 40px corner radius.
+   * The stack blocks read their radius from the RADII table, so a block is a
+   * pill while it is a strip and a 40px tile whenever it is tall — the radius
+   * travels with the height at each step. Scoped through `.stack` to outrank
+   * the plain `.block` and `.block--short` selectors; the small row keeps its
+   * own `--small-radius`.
    *
-   * The matching 100% smoothing is applied in index.css. corner-shape is newer
-   * than the property list svelte-check validates component CSS against, so
-   * declaring it here raises a spurious unknown-property warning that cannot be
-   * suppressed from inside a component.
-   *
-   * Applied to `.block` rather than the stack, so the five small boxes match. CSS
-   * clamps a radius to half the shorter side, so the 50px strips round into pills
-   * at this value; that is inherent to the specified radius rather than a bug, and
-   * lowering it would need a separate rule per height.
+   * The matching 100% smoothing is applied in index.css on `.block--tiled`,
+   * which the markup sets exactly when the radius is the tile value.
+   * corner-shape is newer than the property list svelte-check validates
+   * component CSS against, so declaring it here would raise a spurious
+   * unknown-property warning that cannot be suppressed from inside a
+   * component.
    */
-  .block {
-    border-radius: 40px;
+  .stack .block {
+    border-radius: var(--radius, 2.5rem);
   }
 
   .stack .block {
@@ -723,20 +898,24 @@
    * block takes an equal share of the width, and its height is pinned to the
    * strip so the last step changes nothing on this layout.
    */
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .row {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       gap: 0.625rem;
-      height: 56px;
+      height: 3.5rem;
     }
 
     .row .block--small {
       flex: none;
       width: auto;
-      height: 56px;
+      height: 3.5rem;
       padding: 0 0.25rem;
-      border-radius: 9999px;
+      /*
+       * Half the pinned 3.5rem height, which the CSS clamp would make of any
+       * larger value anyway -- written honestly so nothing has to ride a clamp.
+       */
+      border-radius: 1.75rem;
     }
 
     .block--small h3 {
@@ -757,6 +936,74 @@
     /* No cursor tracking: the glow is the only thing that moves here. */
     .block::after {
       display: none;
+    }
+  }
+
+  /*
+   * Take-to-the-top, in the viewport's bottom-right corner.
+   *
+   * Fixed rather than absolute, so the 30px offsets are measured from the
+   * viewport edges, not the body section — the button sits in the viewport's
+   * scope regardless of where the section's content ends. No ancestor carries
+   * a transform, filter or backdrop-filter, so the fixed position is measured
+   * from the true viewport and the section's overflow clip cannot reach it.
+   *
+   * Always mounted and revealed by class rather than added by {#if}, so both
+   * directions of the reveal can transition: it rises in with a delay so it
+   * arrives after stage 4 has settled, and drops out instantly when the
+   * stage is left. The same frosted treatment as the blocks, so it reads as
+   * part of the same family. The 100% corner smoothing is applied from
+   * index.css (corner-shape is too new for svelte-check's component CSS
+   * parser).
+   */
+  .to-top {
+    position: fixed;
+    right: 1.875rem;
+    bottom: 1.875rem;
+
+    display: grid;
+    place-items: center;
+    width: 6.25rem;
+    height: 6.25rem;
+    padding: 0;
+
+    border: 0.0625rem solid rgb(255 255 255 / 0.1);
+    border-radius: 1.5625rem;
+    background: rgb(255 255 255 / 0.05);
+    backdrop-filter: blur(1.5rem);
+    color: var(--color-neutral-100);
+    cursor: pointer;
+
+    opacity: 0;
+    transform: translateY(0.5rem);
+    pointer-events: none;
+
+    transition:
+      opacity 0.5s ease-out,
+      transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .to-top--in {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+
+    /* Lets stage 4's expansion settle before the button arrives. */
+    transition-delay: 0.6s;
+  }
+
+  .to-top:focus-visible {
+    outline: 0.125rem solid var(--color-neutral-100);
+    outline-offset: 0.25rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .to-top {
+      transition: none;
+    }
+
+    .to-top--in {
+      transform: none;
     }
   }
 </style>
