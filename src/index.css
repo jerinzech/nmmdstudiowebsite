@@ -250,7 +250,12 @@
   -webkit-text-fill-color: currentColor;
 }
 
-/* Names, as the selector they come from. */
+/*
+ * Names as the selector they come from, plus the sizes that drive the morphs.
+ * The heights and gaps are read from the CSS variables Blocks.svelte sets
+ * inline on the elements: they flip to the target value at the step boundary
+ * while the boxes visibly transition, so the tag shows where a morph is headed.
+ */
 #mainapp { --debug-label: '#mainapp'; }
 .page { --debug-label: '.page'; }
 .loader { --debug-label: '.loader (fixed)'; }
@@ -259,12 +264,12 @@
 .nav__logo { --debug-label: '.nav__logo'; }
 .landing { --debug-label: '.landing (absolute overlay)'; }
 .measure { --debug-label: '.measure (hidden width reader)'; }
-.blocks { --debug-label: '.blocks'; }
-.column { --debug-label: '.column'; }
-.stack { --debug-label: '.stack'; }
-.block { --debug-label: '.block'; }
-.block--small { --debug-label: '.block--small'; }
-.row { --debug-label: '.row'; }
+.blocks { --debug-label: '.blocks · max-w:' var(--max-width); }
+.column { --debug-label: '.column · gap:' var(--section-gap) ' · h:' var(--column-height); }
+.stack { --debug-label: '.stack · gap:' var(--block-gap) ' · h:' var(--stack-height); }
+.block { --debug-label: '.block · h:' var(--height); }
+.block--small { --debug-label: '.block--small · h:' var(--small-height) ' · w:' var(--small-width); }
+.row { --debug-label: '.row · gap:' var(--small-gap) ' · h:' var(--small-height); }
 .footer { --debug-label: '.footer (fixed)'; }
 
 /* Corners staggered so nested tags do not sit on the same spot. */
