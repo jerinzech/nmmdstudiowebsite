@@ -139,8 +139,8 @@
 
   const BLOCKS = [
     { id: 'work', label: 'Selected work', body: 'Placeholder copy describing a project, its role, and the year it shipped.' },
-    { id: 'studio', label: 'The studio', body: 'Placeholder copy about the practice, how it works, and who it works with.' },
-    { id: 'contact', label: 'Get in touch', body: 'Placeholder copy for enquiries, with a place for an email or a form.' },
+    { id: 'studio', label: 'work', body: 'Placeholder copy about the practice, how it works, and who it works with.' },
+    { id: 'contact', label: 'team', body: 'Placeholder copy for enquiries, with a place for an email or a form.' },
   ];
 
   const SMALL = Array.from({ length: SMALL_COUNT }, (_, i) => ({ id: `s${i}`, label: `Block ${i + 4}` }));
@@ -255,16 +255,14 @@
   });
 
   /**
-   * Below this height a block has no room for text, so it collapses to a plain
-   * strip rather than clipping a line in half.
-   *
-   * The threshold sits above the strip height deliberately. A heading on its own
-   * needs roughly 26px plus padding on both sides, which the 50px strips could not
-   * carry, so they rendered with the text sliced off mid-glyph.
+   * Below this height a block is a strip: no room for title and copy together,
+   * so it carries its title alone, centred, rather than clipping a line in
+   * half. Block 1 never comes this low; blocks 2 and 3 are strips whenever they
+   * stand at the tabled 50px.
    */
   const SHORT_HEIGHT = 140;
 
-  /** Short strips drop their copy and their padding, leaving a plain bar. */
+  /** Short strips drop their copy and keep their centred title. */
   const isShort = (height: number) => height < SHORT_HEIGHT;
 
   /**
@@ -366,14 +364,14 @@
         class:block--compact={block.id === 'work' && height <= WORK_COMPACT_HEIGHT}
         style="--height: {rem(height)}; --radius: {rem(RADII[step][i])}; --index: {i}"
       >
-        {#if !isShort(height)}
-          {#if block.id === 'work'}
-            <span class="block__hey">hey !!</span>
-            <p class="block__tagline">we are an indie design and dev studio</p>
-          {:else}
-            <h2 class="block__title">{block.label}</h2>
-            <p class="block__body">{block.body}</p>
-          {/if}
+        {#if isShort(height)}
+          <h2 class="block__title">{block.label}</h2>
+        {:else if block.id === 'work'}
+          <span class="block__hey">hey !!</span>
+          <p class="block__tagline">we are an indie design and dev studio</p>
+        {:else}
+          <h2 class="block__title">{block.label}</h2>
+          <p class="block__body">{block.body}</p>
         {/if}
       </article>
       {/each}
@@ -641,7 +639,14 @@
   }
 
   .block h2 {
-    font-size: clamp(1.375rem, 2.6vw, 2.25rem);
+    font-size: 1.5rem;
+
+    /*
+     * Work Sans is a variable font, so the weight interpolates: the title
+     * lightens as the block collapses into a strip and returns to medium as
+     * it expands, on the same curve as the block's own morph.
+     */
+    transition: font-weight var(--morph-duration) var(--morph-ease);
   }
 
   .block h3 {
@@ -665,7 +670,7 @@
    *
    * Both lines are absolute and anchored to the block's vertical midpoint —
    * the greeting dead on it, the subtitle below it, offset by half the
-   * greeting's height plus the gap: 1rem at full size, 0.5rem compact. Their
+   * greeting's height plus the gap: 3rem at full size, 0.5rem compact. Their
    * `50%` terms track the animating block height, and every offset travels on
    * the block's own morph curve, so the pair glides together through each
    * stage change — the greeting's move to the left animates exactly like the
@@ -701,7 +706,7 @@
 
   .block--work .block__tagline {
     position: absolute;
-    top: calc(50% + 4.125rem); /* half the 6.25rem greeting + the 1rem gap */
+    top: calc(50% + 6.125rem); /* half the 6.25rem greeting + the 3rem gap */
     left: 50%;
     transform: translateX(-50%);
 
@@ -753,19 +758,31 @@
   }
 
   /*
-   * A strip with nothing in it. Padding comes off so the bar reads as a solid
-   * band at its tabled height rather than as a thin line inside a padded box.
+   /*
+   * A strip carries its title alone, vertically centred, 4rem in from the left
+   * edge. Padding comes off the other sides so the pill still reads as a solid
+   * band at its tabled height; the left padding seats the label inside the
+   * pill's curve.
    *
    * The radius is not overridden here: the strip is a pill, and the pill value
    * reaches it through `--radius` like every other stack block.
    */
   .block--short {
-    padding: 0;
+    justify-content: center;
+    padding: 0 0 0 4rem;
     transition:
       height var(--morph-duration) var(--morph-ease),
       padding var(--morph-duration) var(--morph-ease),
       border-radius var(--morph-duration) var(--morph-ease),
       corner-shape var(--morph-duration) var(--morph-ease);
+  }
+
+  /*
+   * Not expanded, the strip's title sits light; it takes the shared rule's
+   * medium weight once the block expands into a tile.
+   */
+  .block--short .block__title {
+    font-weight: 300;
   }
 
   .row {
