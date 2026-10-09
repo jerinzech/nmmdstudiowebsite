@@ -80,7 +80,7 @@
     [53, 7.6, 7.6],
     [21.2, 40, 7.6],
     [21.2, 21.2, 40],
-    [51.5, 7.6, 7.6],
+    [43, 7.6, 7.6],
   ] as const;
 
   /*
@@ -1564,16 +1564,19 @@
   }
 
   /*
-   * Below 40rem the freed space is proportionally smaller, so the mark comes
-   * down with it rather than crowding the row above.
+   * Below 40rem the freed space is proportionally smaller — the column fills
+   * 94% of a shorter body — so the mark comes down with the block rather than
+   * sitting on the row above it. Block 1 at the last step is shortened for the
+   * same reason there: the wordmark needs somewhere to be.
    */
   @media (max-width: 40rem) {
     .end-mark {
+      bottom: 0.75rem;
       gap: 0.0625rem;
     }
 
     .end-mark__name {
-      font-size: 1.5rem;
+      font-size: 1.375rem;
     }
 
     .end-mark__studio {
