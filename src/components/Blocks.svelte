@@ -977,7 +977,12 @@
     padding: 1.5rem;
     overflow: hidden;
     border: 0.0625rem solid rgb(255 255 255 / 0.1);
-    background: rgb(255 255 255 / 0.05);
+    /*
+     * No white tint here on purpose. A translucent white fill lifted every
+     * block toward grey and washed out the colour wash showing through the
+     * frosted blur. With it gone the backdrop reads the ambient colour instead.
+     */
+    background: transparent;
     backdrop-filter: blur(1.5rem);
 
     /*
@@ -1462,7 +1467,8 @@
 
     border: 0.0625rem solid rgb(255 255 255 / 0.1);
     border-radius: 1.5625rem;
-    background: rgb(255 255 255 / 0.05);
+    /* Matches the blocks: no white tint, so the frosted blur shows the colour wash. */
+    background: transparent;
     backdrop-filter: blur(1.5rem);
     color: var(--color-neutral-100);
     cursor: pointer;

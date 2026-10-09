@@ -29,34 +29,44 @@
   const BLUR = 200;
 
   /**
-   * Blob radii, as a fraction of the viewport's smaller dimension.
+   * Blob positions, as fractions of the viewport, and radii as fractions of its
+   * smaller dimension.
    *
-   * The radii are deliberately large relative to the 200px blur. A Gaussian
-   * blur preserves a colour's hue and saturation exactly, but spreads its
-   * energy, so the *value* (lightness) at the core falls as the blur grows.
-   * Measured at sigma=200 on a 577px-tall viewport: a 200px-radius blob peaks
-   * at only ~12% of its solid value, while a 300px radius reaches ~40%.
-   * These radii (0.30-0.55 of the viewport's short side) put every core well
-   * up that curve, so the blobs hold near-solid lightness while their edges
-   * still run the full 200px soft.
+   * Both the cluster and its scale come from the design reference. Measured off
+   * that image, every colour sits inside a tight box around the middle
+   * (x 0.31-0.71, y 0.29-0.75) and nothing reaches the corners.
+   *
+   * The radii are small for the same reason the wash is dim: a Gaussian blur
+   * spreads a shape's energy, so a lighter peak needs a smaller source. At
+   * sigma=200 a 250px-radius blob holds ~50% of its solid value and reads as a
+   * strong colour; these sit at roughly 0.14-0.17 of the short side, which is
+   * what lands the field in the reference's band.
    */
   const BLOBS = [
-    // Core — darkest colours, anchoring the centre where the text sits.
-    { x: 0.5, y: 0.5, r: 0.42, fill: '#511e1e' },
-    { x: 0.4, y: 0.4, r: 0.36, fill: '#4e7248' },
-    { x: 0.61, y: 0.6, r: 0.38, fill: '#6100ff' },
-    // Mid ring — the cool blues, pushed out so the true centre stays dark.
-    { x: 0.28, y: 0.55, r: 0.34, fill: '#6c94fc' },
-    { x: 0.72, y: 0.42, r: 0.32, fill: '#6c94fc' },
-    // The bright greens, lifting through the middle band.
-    { x: 0.45, y: 0.28, r: 0.26, fill: '#9dde32' },
-    { x: 0.4, y: 0.7, r: 0.24, fill: '#9dde32' },
-    // Outer rim — the warm and pale colours, away from the text.
-    { x: 0.22, y: 0.25, r: 0.32, fill: '#f99987' },
-    { x: 0.78, y: 0.22, r: 0.32, fill: '#ffa800' },
-    { x: 0.76, y: 0.74, r: 0.32, fill: '#faef82' },
-    { x: 0.24, y: 0.75, r: 0.32, fill: '#fafbc1' },
+    // Upper band — the warm ambers, sitting above the middle.
+    { x: 0.5, y: 0.36, r: 0.17, fill: '#ffa800' },
+    { x: 0.58, y: 0.35, r: 0.16, fill: '#f99987' },
+    { x: 0.6, y: 0.41, r: 0.15, fill: '#511e1e' },
+    // Middle — the cool blues and the green, the densest part of the cluster.
+    { x: 0.4, y: 0.42, r: 0.17, fill: '#6c94fc' },
+    { x: 0.37, y: 0.49, r: 0.16, fill: '#6100ff' },
+    { x: 0.45, y: 0.49, r: 0.15, fill: '#4e7248' },
+    { x: 0.58, y: 0.5, r: 0.14, fill: '#9dde32' },
+    // Lower band — the pale yellows, trailing under the cluster.
+    { x: 0.58, y: 0.65, r: 0.15, fill: '#faef82' },
+    { x: 0.66, y: 0.63, r: 0.14, fill: '#fafbc1' },
   ] as const;
+
+  /**
+   * Overall dimmer for the wash.
+   *
+   * The reference background is far darker than full-strength colour: its
+   * brightest point measures a value of ~0.25 against a near-black surround,
+   * where a saturated blob at full opacity would sit near 1.0. Rather than
+   * shrink the blobs to nothing, they keep their size and the whole group is
+   * held down to that level.
+   */
+  const OPACITY = 0.3;
 
   let w = $state(0);
   let h = $state(0);
@@ -94,6 +104,7 @@
     width={w}
     height={h}
     viewBox="0 0 {w} {h}"
+    opacity={OPACITY}
   >
     <defs>
       <!--
@@ -107,7 +118,7 @@
     </defs>
 
     <g filter="url(#wash-blur)">
-      {#each BLOBS as blob}
+      {#each BLOBS as blob, i (i)}
         <circle
           cx={blob.x * w}
           cy={blob.y * h}

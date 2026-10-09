@@ -69,6 +69,12 @@
    * The wash: fixed to the viewport behind every layer, so the colour is
    * always the same distance from the text no matter which stage is showing.
    * pointer-events off so it never intercepts a click meant for the page.
+   *
+   * There is deliberately no darkening scrim over it. The reference background
+   * gets its darkness from the blobs themselves — small, dim and tightly
+   * clustered — so the black is already there where the wash is thin. A scrim
+   * was tried and removed twice: at any strength that helps contrast it also
+   * mutes the hues toward grey.
    */
   .wash {
     position: fixed;
