@@ -203,10 +203,18 @@
   /*
    * The NMMD line is the one that resolves into NAMMADE, so its own reveal
    * finishes first and the letter sequence gets the stage to itself.
+   *
+   * The clamp is bounded by the WIDTH the word needs, not just the height it
+   * would like: 13vw grew the wordmark to 119px on a 2560px display (the
+   * `6rem` ceiling never bound) while "NAMMADE" at that size measures over
+   * 700px and spills past a narrow phone's column at the small end. The band
+   * is now 3.5rem–5.5rem with 11vw between, which measures ~372px at its
+   * largest and ~137px at its smallest — inside the narrowest column at every
+   * size, and never outgrowing the hero.
    */
   .nmmd {
     font-family: var(--font-stacked);
-    font-size: clamp(3.5rem, 13vw, 6rem);
+    font-size: clamp(3.5rem, 11vw, 5.5rem);
     font-weight: 200;
     line-height: 0.9;
     letter-spacing: -0.07em;
@@ -277,7 +285,7 @@
   .measure__word {
     display: block;
     font-family: var(--font-stacked);
-    font-size: clamp(3.5rem, 13vw, 6rem);
+    font-size: clamp(3.5rem, 11vw, 5.5rem);
     font-weight: 200;
     line-height: 0.9;
     letter-spacing: -0.07em;

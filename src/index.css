@@ -188,15 +188,15 @@
   }
 
   /*
-   * Below the same 40rem breakpoint Blocks.svelte uses, the small row is pinned
-   * to 3.5rem pills at every step; squircle smoothing applied to a full pill
-   * distorts the stadium, so the smoothing stays off there and the row keeps
-   * plain round ends at all stages.
+   * Below the phone band the small row is a strip of pills at every step;
+   * squircle smoothing applied to a full pill distorts the stadium, so the
+   * smoothing stays off there and the row keeps plain round ends at all
+   * stages. Keyed off the device class, like every other per-band number —
+   * the class is set from the same breakpoint table the heights use, so the
+   * two can never disagree.
    */
-  @media (max-width: 40rem) {
-    .row--expanded .block--small {
-      corner-shape: round;
-    }
+  .blocks[style*='--device: phone'] .row--expanded .block--small {
+    corner-shape: round;
   }
 }
 

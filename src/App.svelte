@@ -35,6 +35,64 @@
     stage = 'leaving';
   };
 
+  /*
+   * Skipping the intro.
+   *
+   * The loader runs one fixed cycle — measured, ~7 seconds end to end — and
+   * nothing could cut it short, so a returning visitor sat through the whole
+   * word dance every time. The landing page that follows is already
+   * dismissible by any scroll, touch or key, but only after it has fully
+   * arrived, so the fastest possible path through the intro was the loader's
+   * full length plus 2.6s of settle.
+   *
+   * A skip takes over the loader's own dismissal instead: the first input
+   * after the letters have assembled (the moment the animation has shown what
+   * it is for) hands straight to the landing stage, skipping the drift cycle
+   * and its fade. The loader's own timers are cleared when it goes, so a skip
+   * cannot then be overridden by the cycle finishing behind it.
+   *
+   * Skipping is deliberately not armed before the letters are in: an input in
+   * the first moments would cut the reveal itself, which is the part that
+   * cannot be replayed.
+   */
+  const SKIP_AFTER = 1.4;
+
+  let canSkip = $state(false);
+  let loaderDone = $state(false);
+
+  $effect(() => {
+    if (stage !== 'loading') return;
+
+    const timer = setTimeout(() => (canSkip = true), SKIP_AFTER * 1000);
+    return () => clearTimeout(timer);
+  });
+
+  const skip = () => {
+    if (stage !== 'loading' || !canSkip) return;
+    loaderDone = true;
+    stage = 'landing';
+  };
+
+  $effect(() => {
+    if (stage !== 'loading') return;
+
+    const events = ['scroll', 'wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    for (const event of events) {
+      window.addEventListener(event, skip, { passive: true });
+    }
+
+    return () => {
+      for (const event of events) {
+        window.removeEventListener(event, skip);
+      }
+    };
+  });
+
+  /*
+   * The landing page's own dismissal: once it has fully arrived, any input
+   * sends it out. Listened only during that stage so the skip above cannot
+   * chain straight past the hero.
+   */
   $effect(() => {
     if (stage !== 'landing') return;
 
@@ -126,7 +184,7 @@
 
 <main id="mainapp" class:xray={guides}>
   <ColorWash />
-  <LoadingPage oncomplete={() => (stage = 'landing')} />
+  <LoadingPage skipped={loaderDone} oncomplete={() => (stage = 'landing')} />
 
   <div class="page">
     <Navbar

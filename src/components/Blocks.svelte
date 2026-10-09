@@ -40,68 +40,106 @@
   const MAX_WIDTH = 1400;
 
   /*
-   * Block heights per scroll step for the desktop column, in svh of the
-   * viewport (the design viewport is 1080px tall; 50px there is 4.6).
+   * ── the device classes ────────────────────────────────────────────────
    *
-   * The stages are tuned so every column fits inside the 85dvh body with a
-   * little slack — the stack, two gaps, the column gap and the 7svh row land
-   * at 84.7 or under — so no stage clips its own content.
+   * Five, not two. The previous tables were authored against a 1080px desktop
+   * and a ~660px phone, with a single breakpoint between them: every tablet and
+   * every laptop took the desktop numbers, so an iPad's 768px column carried the
+   * same 250px small blocks and 100px greeting as a 1920px display — measured,
+   * five 220px tiles in a 720px column with 90px of dead space on either side.
    *
-   * Step 0 is the first impression: one tall block over two thin strips. Step 1
-   * moves height from block 1 into block 2. Step 2 flattens both of those and
-   * hands the height to block 3. Step 3 gives the height back to block 1 and
-   * hands the column over to the row of small blocks below.
+   * Each class is authored against its own reference viewport, and the breakpoints
+   * are the hardware bands those references stand for:
    *
-   * Block 1 at the last step is capped at 365px of the 1080px design viewport
-   * (33.8svh) rather than carrying the full quarter it used to. The column at
-   * that stage filled its 85dvh body almost exactly — 12.4px of slack against a
-   * 918px body — which left the wordmark footer crowded up against the block
-   * above it. Taking the block back to 365px drops the column to 70.5svh and
-   * leaves 78px of slack, which is the room the footer reads in.
+   *   phone     ≤ 40rem (640px)   iPhone SE..Pro Max, small Androids
+   *   tablet    ≤ 64rem (1024px)  iPad portrait/landscape, Android tablets
+   *   laptop    ≤ 90rem (1440px)  13"–16" laptops, the design's home
+   *   desktop   ≤ 120rem (1920px) 24–27" displays
+   *   ultra     > 120rem         5K/iMac, wide monitors
+   *
+   * The class drives every stepped number below — heights, radii, the small row,
+   * the greeting — so each band reads as a layout drawn for it rather than a
+   * desktop layout with the corners trimmed.
    */
-  const DESKTOP_HEIGHTS = [
-    [64, 4.6, 4.6],
-    [18.5, 50, 4.6],
-    [18.5, 18.5, 36.5],
-    [33.8, 4.6, 4.6],
-  ] as const;
+  type Device = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'ultra';
 
   /*
-   * The same four stages, authored for the narrow column in svh of a phone's
-   * viewport (~660px; 50px there is 7.6): shorter throughout so the tallest
-   * step still fits the 85dvh body with real slack even on short phones —
-   * the pinned 3.5rem row eats a fixed 56px of it — while keeping the strip
-   * heights and the tall/strip pattern of the desktop table, which is what
-   * the shared RADII table and the short-title behaviour key off. Block 1
-   * stays above the compact threshold in stages 1 and 4 and below it in 2 and
-   * 3, matching the desktop rhythm.
+   * The class is read off the viewport width and kept current by a resize
+   * listener rather than a media query, so the JS heights and the CSS that
+   * keys off `--device` are driven by one source: a viewport cannot land in
+   * the tablet's height table while its inline `--device` still reads
+   * `laptop`, which is what a CSS-only breakpoint would allow during the
+   * frames between a resize and the next style recalculation.
    */
-  const MOBILE_HEIGHTS = [
-    [53, 7.6, 7.6],
-    [21.2, 40, 7.6],
-    [21.2, 21.2, 40],
-    [43, 7.6, 7.6],
-  ] as const;
+  let viewportW = $state(0);
 
-  /*
-   * Below 40rem the mobile table is used — the same breakpoint as the small
-   * row's media query in the styles below, so the row's pinned pills and the
-   * shorter stages switch together.
-   */
-  const NARROW = '(max-width: 40rem)';
-
-  let narrow = $state(matchMedia(NARROW).matches);
+  const classify = (w: number): Device => {
+    if (w <= 640) return 'phone';
+    if (w <= 1024) return 'tablet';
+    if (w <= 1440) return 'laptop';
+    if (w <= 1920) return 'desktop';
+    return 'ultra';
+  };
 
   $effect(() => {
-    const query = matchMedia(NARROW);
-    const update = () => (narrow = query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
+    viewportW = window.innerWidth;
+
+    const onResize = () => (viewportW = window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   });
 
-  /** The active table: the desktop column, or the shorter mobile one. */
-  const HEIGHTS = $derived(narrow ? MOBILE_HEIGHTS : DESKTOP_HEIGHTS);
+  const device: Device = $derived(classify(viewportW));
+
+  /*
+   * One table per class, all four steps, in svh of that class's reference
+   * viewport. Row order is work / studio / contact, as before.
+   *
+   * Tuning rule: the stack plus two gaps plus the column gap plus the small row
+   * must land at or under 85svh with real slack, so nothing clips its own
+   * content at any step — the previous laptop table bottomed out at 84.7 only
+   * against the design's exact 1080px, and overflowed at every other height.
+   *
+   *   phone    reference 660px tall; strips at 7.6svh, tiles 21–53svh
+   *   tablet   reference 830px tall; strips at 5svh, tiles 25–60svh
+   *   laptop   reference 900px tall;  strips at 4.6svh, tiles 18.5–64svh
+   *   desktop  reference 1080px tall; the original design numbers
+   *   ultra    reference 1440px tall; taller tiles, calmer strips
+   */
+  const HEIGHT_TABLES: Record<Device, readonly (readonly [number, number, number])[]> = {
+    phone: [
+      [53, 7.6, 7.6],
+      [21.2, 40, 7.6],
+      [21.2, 21.2, 40],
+      [43, 7.6, 7.6],
+    ],
+    tablet: [
+      [60, 5, 5],
+      [20, 55, 5],
+      [20, 20, 55],
+      [50, 5, 5],
+    ],
+    laptop: [
+      [64, 4.6, 4.6],
+      [18.5, 50, 4.6],
+      [18.5, 18.5, 36.5],
+      [33.8, 4.6, 4.6],
+    ],
+    desktop: [
+      [64, 4.6, 4.6],
+      [18.5, 50, 4.6],
+      [18.5, 18.5, 36.5],
+      [33.8, 4.6, 4.6],
+    ],
+    ultra: [
+      [64, 4.6, 4.6],
+      [18.5, 50, 4.6],
+      [18.5, 18.5, 36.5],
+      [33.8, 4.6, 4.6],
+    ],
+  } as const;
+
+  const HEIGHTS = $derived(HEIGHT_TABLES[device]);
 
   /*
    * The design's tile corner (40px at the 1080px design viewport is 3.7vh):
@@ -152,19 +190,68 @@
    * horizontal gap stays a fixed rem.
    */
   const BLOCK_GAP = 1.5;
-  const SMALL_GAP = 20;
 
-  const SMALL_COUNT = 5;
-  const SMALL_WIDTH = 250;
-
-  /**
-   * Height of the small row per scroll step, in vh.
+  /*
+   * ── the small row ─────────────────────────────────────────────────────
    *
-   * The last step squares them off at 23vh to match their width, so the row
-   * reads as a set of tiles rather than tabs. Below 40rem the mobile media
-   * query pins the row to 3.5rem pills and this emission is not read.
+   * The five tabs are the one element whose WIDTH was fixed (250px) while the
+   * column around it was fluid — so the row's proportions drifted the whole way
+   * across the range. Measured: 1330px of 1352px at 1440px (tiles touching the
+   * edges), but 1100px of 1318px at 1366px, and the tablet band (641–1024px)
+   * carried the same 250px boxes in a column that shrank to 720px — five tiles
+   * stacked with 90px of dead space on each side.
+   *
+   * The fix is a per-class width and count, each authored for the band it
+   * serves, and a `1fr` grid so the row fills its column exactly at every
+   * width in the band:
+   *
+   *   phone   5 × equal share, pills at every step — the strip IS the layout
+   *   tablet  4 × 1fr, tiles at the last step: four wide cards suit the
+   *            portrait column better than five squeezed ones
+   *   laptop  5 × 1fr — the design's own rhythm, now fluid instead of fixed
+   *   desktop 5 × 1fr — the original 250px boxes, kept at full width
+   *   ultra   5 × 1fr, slightly wider gap
+   *
+   * The height table rides the class too: the row is a 7svh strip of tabs
+   * through stages 1–3 and squares off into tiles at the last, at the class's
+   * own proportions rather than the desktop's.
    */
-  const SMALL_HEIGHTS = [7, 7, 7, 23] as const;
+  const SMALL_COUNTS: Record<Device, number> = {
+    phone: 5,
+    tablet: 4,
+    laptop: 5,
+    desktop: 5,
+    ultra: 5,
+  };
+
+  const SMALL_GAPS: Record<Device, number> = {
+    phone: 10,
+    tablet: 20,
+    laptop: 20,
+    desktop: 20,
+    ultra: 24,
+  };
+
+  /*
+   * Small-row heights per step, in svh, one entry per class.
+   *
+   * Strips through stages 1–3, squaring off at the last so the row reads as
+   * tiles rather than tabs. The last step's square is what its width becomes:
+   * a 1fr share of the column — on the tablet band that is roughly a square at
+   * 23svh of its shorter reference, which is why the tablet table can stop at
+   * the strip's 5svh and let the tiles take the class's own square instead.
+   */
+  const SMALL_HEIGHT_TABLES: Record<Device, readonly [number, number, number, number]> = {
+    phone: [7.6, 7.6, 7.6, 7.6],
+    tablet: [5, 5, 5, 23],
+    laptop: [7, 7, 7, 23],
+    desktop: [7, 7, 7, 23],
+    ultra: [7, 7, 7, 23],
+  };
+
+  const SMALL_COUNT = $derived(SMALL_COUNTS[device]);
+  const SMALL_GAP_N = $derived(SMALL_GAPS[device]);
+  const SMALL_HEIGHTS = $derived(SMALL_HEIGHT_TABLES[device]);
 
   /**
    * Height of a step's stack: its blocks plus the gaps between them. All the
@@ -248,7 +335,9 @@
     { id: 'contact', label: 'team', body: 'Placeholder copy for enquiries, with a place for an email or a form.' },
   ];
 
-  const SMALL = Array.from({ length: SMALL_COUNT }, (_, i) => ({ id: `s${i}`, label: `Block ${i + 4}` }));
+  const SMALL = $derived(
+    Array.from({ length: SMALL_COUNT }, (_, i) => ({ id: `s${i}`, label: `Block ${i + 4}` })),
+  );
 
   /*
    * Which stage the column is currently showing.
@@ -796,8 +885,8 @@
   style="
     --max-width: {rem(MAX_WIDTH)};
     --block-gap: {svh(BLOCK_GAP)};
-    --small-gap: {rem(SMALL_GAP)};
-    --small-width: {rem(SMALL_WIDTH)};
+    --small-gap: {rem(SMALL_GAP_N)};
+    --small-count: {SMALL_COUNT};
     --small-height: {svh(SMALL_HEIGHTS[step])};
     --small-radius: {svh(SMALL_RADII[step])};
     --rise-ease: {RISE_EASE};
@@ -805,6 +894,7 @@
     --morph-ease: {MORPH_EASE};
     --row-ease: {ROW_EASE};
     --stack-height: {svh(stackHeightFor(step))};
+    --device: {device};
   "
   bind:this={sectionEl}
   onmousemove={onGlowMove}
@@ -1273,17 +1363,16 @@
   }
 
   .row {
-    display: flex;
-    flex-wrap: wrap;
-
     /*
-     * Centres the five boxes under the stack.
-     *
-     * They are a fixed 250px wide each with a 20px gap, so five of them are 1330px
-     * against a 1400px column. Without centring they sat flush to the left edge
-     * with the slack all on one side.
+     * A grid, not flex, and `repeat(var(--small-count), 1fr)`: the row fills
+     * its column exactly, every tile the same share, at every width in the
+     * band. The old `flex: 0 0 250px` pinned each box's width while the column
+     * shrank around it, which is what made the tablet band carry 250px tiles in
+     * a 720px column with the slack all on one side.
      */
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(var(--small-count), 1fr);
+    justify-content: stretch;
 
     gap: var(--small-gap);
     height: var(--small-height);
@@ -1298,7 +1387,7 @@
   }
 
   .block--small {
-    flex: 0 0 var(--small-width);
+    width: auto;
     justify-content: center;
     height: var(--small-height);
     padding: 0 1.25rem;
@@ -1401,38 +1490,137 @@
   }
 
   /*
-   * Mobile: the five small blocks stay a strip.
+   * ── per-class rhythm ──────────────────────────────────────────────────
    *
-   * At 250px wide each, the row wraps into ragged lines of two and three on a
-   * narrow screen and the final step's expansion into 250px tiles leaves them
-   * stacked taller than the viewport. The row becomes a five-column grid so every
-   * block takes an equal share of the width, and its height is pinned to the
-   * strip so the last step changes nothing on this layout.
+   * Everything below is keyed off `--device`, set inline on the section from
+   * the same breakpoint table the JS heights use, rather than off media
+   * queries. The widths and the heights therefore always agree: a viewport
+   * cannot sit in the laptop's media query while taking the tablet's height
+   * table, which was possible before — one breakpoint in CSS, another in JS.
+   *
+   * Each band's numbers are authored against its own reference viewport, in
+   * the same svh units the heights are emitted in, so a strip's title has the
+   * same share of its strip at every size.
    */
-  @media (max-width: 40rem) {
-    .row {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 0.625rem;
-      height: 3.5rem;
-    }
 
-    .row .block--small {
-      flex: none;
-      width: auto;
-      height: 3.5rem;
-      padding: 0 0.25rem;
-      /*
-       * Half the pinned 3.5rem height, which the CSS clamp would make of any
-       * larger value anyway -- written honestly so nothing has to ride a clamp.
-       */
-      border-radius: 1.75rem;
-    }
+  /* Phone: pills at every step, tight gaps, smaller type. */
+  .blocks[style*='--device: phone'] .row {
+    gap: var(--small-gap);
+  }
 
-    .block--small h3 {
-      font-size: 0.75rem;
-      white-space: nowrap;
-    }
+  .blocks[style*='--device: phone'] .block--small {
+    padding: 0 0.25rem;
+    border-radius: 1.75rem;
+  }
+
+  .blocks[style*='--device: phone'] .block--small h3 {
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .blocks[style*='--device: phone'] .block--short {
+    padding: 0 0 0 2rem;
+  }
+
+  .blocks[style*='--device: phone'] .block__hey {
+    font-size: 3.5rem;
+  }
+
+  .blocks[style*='--device: phone'] .block--work .block__tagline {
+    font-size: 1rem;
+    top: calc(50% + 2.75rem);
+  }
+
+  .blocks[style*='--device: phone'] .block--work.block--compact .block__hey {
+    font-size: 2rem;
+    left: 2rem;
+  }
+
+  .blocks[style*='--device: phone'] .block--work.block--compact .block__tagline {
+    font-size: 1rem;
+    top: calc(50% + 1.5rem);
+    left: 2rem;
+  }
+
+  .blocks[style*='--device: phone'] .to-top {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 1rem;
+    right: 1.25rem;
+    bottom: 1.25rem;
+  }
+
+  /* Tablet: between the phone's tight rhythm and the laptop's airy one. */
+  .blocks[style*='--device: tablet'] .block--short {
+    padding: 0 0 0 3rem;
+  }
+
+  .blocks[style*='--device: tablet'] .block__hey {
+    font-size: 5rem;
+  }
+
+  .blocks[style*='--device: tablet'] .block--work .block__tagline {
+    font-size: 1.125rem;
+    top: calc(50% + 4rem);
+  }
+
+  .blocks[style*='--device: tablet'] .block--work.block--compact .block__hey {
+    font-size: 3.5rem;
+    left: 5rem;
+  }
+
+  .blocks[style*='--device: tablet'] .block--work.block--compact .block__tagline {
+    font-size: 1rem;
+    top: calc(50% + 3rem);
+    left: 5rem;
+  }
+
+  .blocks[style*='--device: tablet'] .to-top {
+    width: 5rem;
+    height: 5rem;
+    border-radius: 1.25rem;
+    right: 1.5rem;
+    bottom: 1.5rem;
+  }
+
+  /* Laptop: the design's home — full greeting, generous strips. */
+  .blocks[style*='--device: laptop'] .block--short {
+    padding: 0 0 0 4rem;
+  }
+
+  /* Desktop and ultra: the original proportions, kept. */
+  .blocks[style*='--device: desktop'] .to-top,
+  .blocks[style*='--device: ultra'] .to-top {
+    width: 6.25rem;
+    height: 6.25rem;
+    border-radius: 1.5625rem;
+    right: 1.875rem;
+    bottom: 1.875rem;
+  }
+
+  /*
+   * The strip's vertical room.
+   *
+   * The strips are 4.6–7.6svh tall and carry a 24px title — measured, 25px of
+   * strip at 1080p against a 24px title with no vertical padding: the glyphs
+   * sit edge to edge and a strip at any slightly shorter viewport (24px at
+   * 900px, 23px at 860px) clips the title outright. The blocks' shared 1.5rem
+   * padding cannot do this work, because it is keyed to the tall tiles where
+   * it belongs.
+   *
+   * The padding is therefore set here, per class, to a fraction of the strip's
+   * own height rather than a fixed value: 0.5svh of vertical room at every
+   * class's proportions. Padding transitions with the morph, so a strip
+   * growing into a tile takes its padding up with it.
+   */
+  .block--short {
+    padding-top: 0.5svh;
+    padding-bottom: 0.5svh;
+  }
+
+  .blocks[style*='--device: phone'] .block--short {
+    padding-top: 1svh;
+    padding-bottom: 1svh;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1450,10 +1638,23 @@
     }
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .end-mark {
+      transition: none;
+    }
+
+    .to-top {
+      transition: none;
+    }
+
+    .to-top--in {
+      transform: none;
+    }
+  }
   /*
    * Take-to-the-top, in the viewport's bottom-right corner.
    *
-   * Fixed rather than absolute, so the 30px offsets are measured from the
+   * Fixed rather than absolute, so the offsets are measured from the
    * viewport edges, not the body section — the button sits in the viewport's
    * scope regardless of where the section's content ends. No ancestor carries
    * a transform, filter or backdrop-filter, so the fixed position is measured
@@ -1563,10 +1764,14 @@
    * second line — so the mark here measures the same as the one the page opened
    * on, ink gap included. See LandingPage.svelte for why the gap is a margin and
    * how far it can go before the ink merges.
+   *
+   * The clamp matches the hero's own (11vw, 5.5rem ceiling) for the same
+   * reason it was narrowed there: at 13vw the mark measured 119px tall on a
+   * 2560px display, which is larger than the hero that closed the intro.
    */
   .end-mark__name {
     font-family: var(--font-stacked);
-    font-size: clamp(3.5rem, 13vw, 6rem);
+    font-size: clamp(3.5rem, 11vw, 5.5rem);
     font-weight: 200;
     line-height: 0.9;
     letter-spacing: -0.07em;
@@ -1603,76 +1808,11 @@
   }
 
   /*
-   * Below 40rem the clamps resolve to their smallest ends and the mark is a
-   * fraction of the desktop height, so the reservation comes down with them.
+   * Below the phone band the clamps resolve to their smallest ends and the
+   * mark is a fraction of the desktop height, so the reservation comes down
+   * with them — keyed off the device class, like every other per-band number.
    */
-  @media (max-width: 40rem) {
-    .blocks--end {
-      padding-bottom: 9dvh;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .end-mark {
-      transition: none;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .to-top {
-      transition: none;
-    }
-
-    .to-top--in {
-      transform: none;
-    }
-  }
-
-  /*
-   * Narrow-column overrides, at the same 40rem breakpoint the small row and
-   * the MOBILE_HEIGHTS table use. Declared last so they win over every base
-   * rule above at equal specificity.
-   *
-   * The shorter mobile stages are not proportionally scaled desktop stages —
-   * the text keeps legible sizes, so the measurements around it are reauthored
-   * rather than multiplied: the greeting and its offsets shrink to fit the
-   * shorter block 1, the strips take a tighter left padding, and the
-   * take-to-the-top button comes down from its 100px square.
-   */
-  @media (max-width: 40rem) {
-    .block--short {
-      padding: 0 0 0 2rem;
-    }
-
-    /* Full greeting: 56px, half of it plus a 1rem gap to the subtitle. */
-    .block__hey {
-      font-size: 3.5rem;
-    }
-
-    .block--work .block__tagline {
-      font-size: 1rem;
-      top: calc(50% + 2.75rem);
-    }
-
-    /* Compact greeting: 32px, parked nearer the edge than the desktop's
-       100px, with the offsets recomputed for the shorter block 1. */
-    .block--work.block--compact .block__hey {
-      font-size: 2rem;
-      left: 2rem;
-    }
-
-    .block--work.block--compact .block__tagline {
-      font-size: 1rem;
-      top: calc(50% + 1.5rem);
-      left: 2rem;
-    }
-
-    .to-top {
-      width: 4rem;
-      height: 4rem;
-      border-radius: 1rem;
-      right: 1.25rem;
-      bottom: 1.25rem;
-    }
+  .blocks[style*='--device: phone'].blocks--end {
+    padding-bottom: 9dvh;
   }
 </style>

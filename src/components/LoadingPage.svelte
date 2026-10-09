@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
 
   const TEXT = 'welcome'
 
@@ -86,22 +86,60 @@
   /* Seconds the loader takes to fade once dismissal starts. */
   const FADE = 0.5
 
-  /* Called once the fade-out has finished, so the parent can reveal its content. */
-  let { oncomplete }: { oncomplete?: () => void } = $props()
+  /*
+   * Called once the fade-out has finished, so the parent can reveal its content.
+   */
+  let { oncomplete, skipped = false }: { oncomplete?: () => void; skipped?: boolean } = $props()
 
   let dismissed = $state(false)
 
-  const timers: ReturnType<typeof setTimeout>[] = [
-    /* Fade out once the single cycle has played out. */
-    setTimeout(() => {
+  /*
+   * The cycle's own timers, kept so a skip can clear them: once the parent
+   * dismisses the loader early, the drift must not keep running behind it and
+   * its `dismissed` write must not land after the component is gone.
+   */
+  let timers: ReturnType<typeof setTimeout>[] = []
+  let faded = false
+
+  const dismiss = (immediate = false) => {
+    if (faded) return
+    faded = true
+    timers.forEach(clearTimeout)
+    timers = []
+
+    if (immediate) {
+      /* A skip cuts the fade too: the visitor asked to move on. */
       dismissed = true
-    }, DISMISS_AFTER * 1000),
+      oncomplete?.()
+      return
+    }
+
+    dismissed = true
 
     /* Hand over only after the fade, so the two words never overlap. */
-    setTimeout(() => {
-      oncomplete?.()
-    }, (DISMISS_AFTER + FADE) * 1000),
-  ]
+    timers.push(
+      setTimeout(() => {
+        oncomplete?.()
+      }, FADE * 1000),
+    )
+  }
+
+  /*
+   * A skip from the parent dismisses the loader the moment it arrives, with no
+   * fade of its own — the landing hero is already waiting to take over.
+   */
+  $effect(() => {
+    if (skipped) dismiss(true)
+  })
+
+  onMount(() => {
+    /* Fade out once the single cycle has played out. */
+    timers.push(
+      setTimeout(() => {
+        dismiss()
+      }, DISMISS_AFTER * 1000),
+    )
+  })
 
   onDestroy(() => timers.forEach(clearTimeout))
 </script>
