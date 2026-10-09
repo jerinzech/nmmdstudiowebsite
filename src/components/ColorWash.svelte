@@ -29,26 +29,33 @@
   const BLUR = 200;
 
   /**
-   * Blob radii and offsets, as a fraction of the viewport's smaller dimension.
-   * Sized large relative to the blur so each blob keeps a saturated core while
-   * its edges still run the full 200px soft.
+   * Blob radii, as a fraction of the viewport's smaller dimension.
+   *
+   * The radii are deliberately large relative to the 200px blur. A Gaussian
+   * blur preserves a colour's hue and saturation exactly, but spreads its
+   * energy, so the *value* (lightness) at the core falls as the blur grows.
+   * Measured at sigma=200 on a 577px-tall viewport: a 200px-radius blob peaks
+   * at only ~12% of its solid value, while a 300px radius reaches ~40%.
+   * These radii (0.30-0.55 of the viewport's short side) put every core well
+   * up that curve, so the blobs hold near-solid lightness while their edges
+   * still run the full 200px soft.
    */
   const BLOBS = [
     // Core — darkest colours, anchoring the centre where the text sits.
-    { x: 0.5, y: 0.5, r: 0.15, fill: '#511e1e' },
-    { x: 0.42, y: 0.42, r: 0.13, fill: '#4e7248' },
-    { x: 0.59, y: 0.58, r: 0.135, fill: '#6100ff' },
+    { x: 0.5, y: 0.5, r: 0.42, fill: '#511e1e' },
+    { x: 0.4, y: 0.4, r: 0.36, fill: '#4e7248' },
+    { x: 0.61, y: 0.6, r: 0.38, fill: '#6100ff' },
     // Mid ring — the cool blues, pushed out so the true centre stays dark.
-    { x: 0.31, y: 0.54, r: 0.12, fill: '#6c94fc' },
-    { x: 0.69, y: 0.42, r: 0.11, fill: '#6c94fc' },
+    { x: 0.28, y: 0.55, r: 0.34, fill: '#6c94fc' },
+    { x: 0.72, y: 0.42, r: 0.32, fill: '#6c94fc' },
     // The bright greens, lifting through the middle band.
-    { x: 0.46, y: 0.31, r: 0.09, fill: '#9dde32' },
-    { x: 0.42, y: 0.67, r: 0.08, fill: '#9dde32' },
+    { x: 0.45, y: 0.28, r: 0.26, fill: '#9dde32' },
+    { x: 0.4, y: 0.7, r: 0.24, fill: '#9dde32' },
     // Outer rim — the warm and pale colours, away from the text.
-    { x: 0.26, y: 0.28, r: 0.11, fill: '#f99987' },
-    { x: 0.74, y: 0.26, r: 0.11, fill: '#ffa800' },
-    { x: 0.72, y: 0.7, r: 0.11, fill: '#faef82' },
-    { x: 0.28, y: 0.71, r: 0.11, fill: '#fafbc1' },
+    { x: 0.22, y: 0.25, r: 0.32, fill: '#f99987' },
+    { x: 0.78, y: 0.22, r: 0.32, fill: '#ffa800' },
+    { x: 0.76, y: 0.74, r: 0.32, fill: '#faef82' },
+    { x: 0.24, y: 0.75, r: 0.32, fill: '#fafbc1' },
   ] as const;
 
   let w = $state(0);
