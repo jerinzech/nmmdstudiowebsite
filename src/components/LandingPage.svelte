@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { LETTERS, WORD, measureTracks } from '../lib/wordmark';
+
   /*
    * Two flags, because the wordmark plays and then leaves.
    *
@@ -16,37 +18,11 @@
   const EXIT_DURATION = 0.6;
 
   /*
-   * The wordmark resolves from NMMD into NAMMADE. Three letters are inserted at
-   * positions 1, 4 and 6, so the existing letters cannot simply stay where they
-   * are: everything to the right of an insertion has to slide over to open a
-   * slot for it, and the newly added letters slide in from the direction of
-   * that movement.
-   *
-   * Which target positions were already occupied is listed explicitly rather
-   * than inferred from the characters. The two words share every character, so a
-   * set-membership test cannot tell an inserted A from one that was always
-   * there; it has to be positional.
-   */
-  const WORD = 'NAMMADE';
-
-  /* Positions in WORD that already held a letter in NMMD. */
-  const EXISTING = new Set([0, 2, 3, 5]);
-
-  const LETTERS = WORD.split('').map((char, i) => ({
-    char,
-    /* Added letters start hidden and slide in; the rest only shift sideways. */
-    added: !EXISTING.has(i),
-  }));
-
-  /*
    * Seconds each letter waits before it starts moving, in reading order, and how
    * long one letter takes to settle.
    */
   const LETTER_STAGGER = 0.06;
   const LETTER_DURATION = 0.55;
-
-  /** Narrowest track an added letter animates open from, as a floor. */
-  const MIN_TRACK = 1;
 
   /*
    * The resolve fires after the wordmark line has finished its own reveal, so the
@@ -103,14 +79,7 @@
     document.fonts.ready.then(() => {
       if (cancelled) return;
 
-      const widths: Record<number, number> = {};
-
-      for (const el of host.querySelectorAll<HTMLElement>('[data-measure]')) {
-        const index = Number(el.dataset.measure);
-        widths[index] = Math.max(el.getBoundingClientRect().width, MIN_TRACK);
-      }
-
-      track = widths;
+      track = measureTracks(host);
       measured = true;
     });
 
@@ -131,7 +100,7 @@
     --exit-duration: {EXIT_DURATION}s;
   "
 >
-  <span class="nmmd" aria-label="NAMMADE">
+  <span class="nmmd" aria-label={WORD}>
     {#each LETTERS as letter, i (i)}
       <span
         class="letter"

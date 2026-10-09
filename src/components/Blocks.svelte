@@ -531,11 +531,89 @@
    * Just the scroll — the position is the stage, so as the glide runs this
    * engine walks the column down through the stages and the morphs play on
    * the way up, and the native snap holds the landing at the runway's start.
+   *
+   * The press happens first and the scroll is not held back for it: the button
+   * answers the finger immediately, and the two overlap rather than queue. The
+   * glide only crosses the first stage boundary a third of the way down the
+   * runway, so the button is still on screen for most of the bounce.
    */
   const toTop = () => {
     if (step === 0) return;
 
+    bounceToTop();
+
     scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /* ── the take-to-the-top press ────────────────────────────────────────── */
+
+  let toTopEl: HTMLElement | undefined = $state();
+  let toTopBounce: Animation | undefined;
+  let toTopBouncing = false;
+
+  /**
+   * Seconds for the press, the spring past and the settle.
+   *
+   * Shorter than the column's over-scroll bounce, and deliberately: this one
+   * answers a click, so it wants to land while the finger is still down rather
+   * than trailing after it. It is also unencumbered by the two containers that
+   * cap the column — the button is fixed over the page, nothing clips it, so
+   * the amplitudes can be as deep as a press wants to be.
+   */
+  const BUTTON_BOUNCE = 0.42;
+
+  /** How far the press sinks it, and how far the spring carries past rest. */
+  const BUTTON_PRESS = { x: 0.9, y: 0.84 };
+  const BUTTON_SPRING = { x: 0.98, y: 1.05 };
+
+  /**
+   * Press the button in and let it spring back.
+   *
+   * The press is asymmetric: it narrows more than it shortens, so the frosted
+   * square reads as soft rubber giving under a finger rather than as a box
+   * being scaled down uniformly. The spring then overshoots past rest and
+   * settles, and the segment that carries it out is itself overshooting, which
+   * leaves a second small kick after the first — a click that is answered
+   * rather than merely acknowledged.
+   *
+   * The button's reveal also animates `transform`, so pressing while it is
+   * still arriving would snap it straight out of its own entrance. It holds at
+   * `translateY(0.5rem)` until that finishes, and a computed transform that is
+   * not `none` means the reveal is still in flight — the press is skipped and
+   * the click still scrolls.
+   */
+  const bounceToTop = () => {
+    const el = toTopEl;
+    if (!el || toTopBouncing || quietMotion()) return;
+    if (getComputedStyle(el).transform !== 'none') return;
+
+    toTopBouncing = true;
+    toTopBounce?.cancel();
+
+    toTopBounce = el.animate(
+      [
+        { transform: 'scale(1)', easing: 'cubic-bezier(0.45, 0, 0.55, 0.4)' },
+        {
+          transform: `scale(${BUTTON_PRESS.x}, ${BUTTON_PRESS.y})`,
+          offset: 0.2,
+          easing: 'cubic-bezier(0.2, 1.4, 0.4, 1)',
+        },
+        {
+          transform: `scale(${BUTTON_SPRING.x}, ${BUTTON_SPRING.y})`,
+          offset: 0.52,
+          easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)',
+        },
+        { transform: 'scale(1.004, 0.996)', offset: 0.76, easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)' },
+        { transform: 'scale(1)' },
+      ],
+      { duration: BUTTON_BOUNCE * 1000, fill: 'none' },
+    );
+
+    const settle = () => {
+      toTopBouncing = false;
+    };
+
+    toTopBounce.finished.then(settle, settle);
   };
 
   /*
@@ -623,6 +701,18 @@
    * block and write it as `--mouse-x` / `--mouse-y` so the `::after` radial
    * gradient tracks the cursor. Throttled to one write per paint via rAF.
    */
+  /** Take the glow off every block. */
+  const hideGlow = () => {
+    if (glowRafId !== undefined) {
+      cancelAnimationFrame(glowRafId);
+      glowRafId = undefined;
+    }
+    if (!sectionEl) return;
+    for (const block of sectionEl.querySelectorAll<HTMLElement>('.block')) {
+      block.style.setProperty('--glow-opacity', '0');
+    }
+  };
+
   const onGlowMove = (event: MouseEvent) => {
     if (glowRafId !== undefined) return;
     glowRafId = requestAnimationFrame(() => {
@@ -638,16 +728,35 @@
   };
 
   /** Fade the glow out when the cursor leaves the blocks section. */
-  const onGlowLeave = () => {
-    if (glowRafId !== undefined) {
-      cancelAnimationFrame(glowRafId);
-      glowRafId = undefined;
-    }
-    if (!sectionEl) return;
-    for (const block of sectionEl.querySelectorAll<HTMLElement>('.block')) {
-      block.style.setProperty('--glow-opacity', '0');
-    }
-  };
+  const onGlowLeave = () => hideGlow();
+
+  /*
+   * Leaving the section is not the only way the cursor stops being on the page.
+   *
+   * Alt-tabbing to another app, dragging the cursor onto a second monitor, or
+   * switching tabs all take the pointer off the page without the pointer ever
+   * crossing an element boundary, so no `mouseleave` is dispatched and the ring
+   * stays lit at the last position it was given — sitting there behind whatever
+   * the visitor switched to. A window that loses focus and a tab that is hidden
+   * are both announced on their own events, and both mean the same thing here:
+   * nobody is looking at the blocks, so drop the glow.
+   *
+   * Re-entering does not need a counterpart: the next `mousemove` over the
+   * section writes a fresh position and turns the glow back on by itself.
+   */
+  $effect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') hideGlow();
+    };
+
+    window.addEventListener('blur', hideGlow);
+    document.addEventListener('visibilitychange', onHidden);
+
+    return () => {
+      window.removeEventListener('blur', hideGlow);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
+  });
 </script>
 
 <section
@@ -708,6 +817,7 @@
   <button
     class="to-top"
     class:to-top--in={step === HEIGHTS.length - 1}
+    bind:this={toTopEl}
     onclick={toTop}
     aria-label="Take back to the top"
     aria-hidden={step !== HEIGHTS.length - 1}
