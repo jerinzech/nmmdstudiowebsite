@@ -129,13 +129,19 @@
   </div>
 
   <!--
-    Snap targets for the stage boundaries: one per stage past the first, at
-    each viewport of runway. Paired with scroll-snap-type on <html>, every
-    gesture ends on a stage; the sticky .page itself is the target for stage 1
-    at the runway's start. One fewer anchor than stages — keep in step with
-    Blocks.svelte's HEIGHTS table.
+    Snap targets for the stage boundaries: one per stage, at each viewport of
+    runway. Paired with scroll-snap-type on <html>, every gesture ends on a
+    stage. Keep in step with Blocks.svelte's HEIGHTS table.
+
+    Stage 1 gets an anchor like every other stage, and the sticky .page below no
+    longer carries a snap alignment of its own. It used to stand in as stage 1's
+    target, but a sticky element's snap position moves with the scroll, so the
+    browser was left with no usable snap point at the runway's start. A glide
+    aimed there — the take-to-the-top, from either the button or the logo — was
+    snapped away and settled a stage short of the top. A static anchor is a
+    position the snap engine can actually land on.
   -->
-  {#each [1, 2, 3] as i (i)}
+  {#each [0, 1, 2, 3] as i (i)}
     <div class="stage-anchor" style="top: {i * 100}dvh"></div>
   {/each}
 
@@ -152,9 +158,9 @@
    * tall (the four stages live in Blocks.svelte's HEIGHTS table), and the
    * sticky .page below pins at the top while this height scrolls underneath —
    * so the visitor scrolls the stages in and out while the column stays on
-   * screen. Native scroll snapping (index.css, with this page and the stage
-   * anchors below as targets) lands every gesture on a stage boundary;
-   * Blocks.svelte reads the position back as the stage.
+   * screen. Native scroll snapping (index.css, with the stage anchors below as
+   * targets) lands every gesture on a stage boundary; Blocks.svelte reads the
+   * position back as the stage.
    *
    * dvh over vh: the dynamic viewport tracks the space the mobile browser's
    * collapsed address bar and notification sheet actually leave, where vh
@@ -184,9 +190,16 @@
     position: sticky;
     top: 0;
 
-    /* Stage 1's snap target: its top is the runway's start. */
-    scroll-snap-align: start;
-
+    /*
+     * Deliberately not a snap target.
+     *
+     * This used to carry `scroll-snap-align: start` as stage 1's target, but a
+     * sticky element is pinned to the scrollport and so has no fixed snap
+     * position to align — its snap area moves with the scroll. The snap engine
+     * was therefore left with no target at the runway's start, and any glide
+     * aimed there was snapped away to a later boundary. Every stage, including
+     * this one, is targeted by a static `.stage-anchor` above instead.
+     */
     display: flex;
     flex-direction: column;
     height: 100vh;

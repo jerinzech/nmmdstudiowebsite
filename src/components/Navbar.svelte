@@ -229,16 +229,33 @@
    * across — that displacement is what makes the word resolve rather than the
    * letters simply appearing.
    *
+   * `visibility` is doing the real work of hiding them, and `opacity` is not
+   * enough on its own. The logo paints its wordmark with a gradient clipped to
+   * the text, and `background-clip: text` on the parent clips to the glyphs of
+   * the whole subtree — including these ones. A letter at `opacity: 0` contributes
+   * nothing of its own ink but its glyph outline still scopes the parent's
+   * background, so the gradient paints the closed letter at its zero-width
+   * position, sitting on top of the letters beside it. Hidden letters were
+   * faintly visible that way, between the N and the M. Taking the glyph out of
+   * the paint with `visibility: hidden` takes it out of the clip too.
+   *
    * The transition lives on the letter and not on the hover rule so both
    * directions animate: leaving plays the same sequence backwards.
    */
   .nav__logo .letter--added {
     width: 0;
     opacity: 0;
+    visibility: hidden;
 
     transition:
       opacity var(--letter-duration) var(--letter-ease),
-      width var(--letter-duration) var(--letter-ease);
+      width var(--letter-duration) var(--letter-ease),
+      /*
+       * Visibility is interpolable and is listed so the closing fade is not cut
+       * short: it holds `visible` until the transition ends, where an untransitioned
+       * flip would drop the letters out from under their own fade-out.
+       */
+      visibility var(--letter-duration) var(--letter-ease);
 
     /*
      * Closing runs from the last letter back, the reverse of the reveal, so the
@@ -256,6 +273,7 @@
   .nav__logo:focus-visible .letter--added {
     width: var(--track);
     opacity: 1;
+    visibility: visible;
     transition-delay: calc(var(--i) * var(--letter-stagger));
   }
 
