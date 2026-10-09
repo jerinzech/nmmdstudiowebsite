@@ -158,22 +158,25 @@
     transition: opacity var(--exit-duration) ease-in;
 
     /*
-     * Sized so the two lines of ink nearly touch.
+     * The two lines are stacked tighter than they were.
      *
-     * Both words use line-heights below 1, so each carries negative leading that
-     * eats into the gap. Measured at 96px/45px: NMMD's ink extends 13.6px below
-     * its own box, and STUDIO's ink starts 4px above its own box. That is 17.6px
-     * of slack already present, so the flex gap has to be at least that for the
-     * glyphs to stay apart. 1.1rem lands the ink edges on top of each other.
+     * `gap` cannot take a negative length — the property only accepts
+     * non-negative values and a negative one is dropped as invalid — so the flex
+     * gap above is zeroed and the overlap is carried by `.studio`'s margin
+     * instead.
      *
-     * A negative gap is not usable here: it is invalid CSS, resolves to `normal`
-     * (0), and collapses the lines into each other by a further 17.6px.
+     * How far apart the ink actually ends up is not the margin. Both words use
+     * line-heights below 1, so each box is shorter than the type it holds, and
+     * measured across the 96px design size the ink sits 15px inside the boxes:
+     * a box gap of 0 draws the ink 15px apart. So the margin has to be read
+     * against that, and it bottoms out at about -10px before the ink itself
+     * starts to touch — at -20px the two runs merge into one and STUDIO cuts
+     * through the middle of NAMMADE.
      *
-     * Below 1.1rem the glyph ink starts overlapping (the leading slack is
-     * already spent); 0.75rem tightens the pair by roughly a third while
-     * keeping the overlap light enough to read as one stacked wordmark.
+     * -0.625rem is 22px tighter than the 12px this was before, which is where
+     * the design's tightening lands before the ink collides.
      */
-    gap: 0.75rem;
+    gap: 0;
     width: 100%;
     min-height: 100vh;
     text-align: center;
@@ -287,6 +290,14 @@
 
   .studio {
     font-family: var(--font-studio);
+    /*
+     * The tightening, carried as a margin because the flex gap cannot go
+     * negative. The negative top edge pulls the line up into the one above it;
+     * the pair is centred as a group, so pulling one up also nudges the other
+     * down by half as much and the whole stack settles on its own centre.
+     */
+    margin-top: -0.625rem;
+
     /*
      * The vw term has to reach 2.8125rem by about an 87.5rem viewport, otherwise
      * the clamp resolves below the target size on common desktop widths and the

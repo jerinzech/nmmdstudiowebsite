@@ -4,6 +4,7 @@
   import Navbar from './components/Navbar.svelte'
   import Blocks from './components/Blocks.svelte'
   import Footer from './components/Footer.svelte'
+  import ColorWash from './components/ColorWash.svelte'
 
   /*
    * The page runs as a sequence of stages, each one waiting for the last:
@@ -124,6 +125,7 @@
 </script>
 
 <main id="mainapp" class:xray={guides}>
+  <ColorWash />
   <LoadingPage oncomplete={() => (stage = 'landing')} />
 
   <div class="page">

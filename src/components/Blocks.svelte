@@ -779,6 +779,7 @@
   class="blocks"
   class:blocks--in={revealed}
   class:blocks--entered={entered}
+  class:blocks--end={step === HEIGHTS.length - 1}
   style="
     --max-width: {rem(MAX_WIDTH)};
     --block-gap: {svh(BLOCK_GAP)};
@@ -1490,9 +1491,12 @@
   }
 
   /*
-   * The closing wordmark, in the same pairing as the landing hero: the name in
-   * the condensed face with the studio line under it, so the page closes on the
-   * mark it opened with.
+   * The closing wordmark, in the landing hero's own sizes.
+   *
+   * Both lines use the same clamps, line-heights, weights and tracking as the
+   * hero, and the second line carries the same -20px margin, so the mark here
+   * measures the same as the one the page opened on rather than being a smaller
+   * echo of it. See LandingPage.svelte for why the gap is a margin.
    *
    * Out of flow, anchored to the bottom of the body. Left in flow it would
    * consume height at every stage and push the column up, and it is only ever
@@ -1516,7 +1520,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.125rem;
+    gap: 0;
 
     /* Decorative: the name is already in the navbar's accessible label. */
     pointer-events: none;
@@ -1535,54 +1539,57 @@
   }
 
   /*
-   * The name carries the navbar logo's face, weight and tracking so the two read
-   * as one mark, and the sizes are budgeted against the 78px the last stage
-   * frees: 34 + 2 + 11 = 47px, leaving room either side.
+   * The hero's own type and the hero's own tightening, unmodified — the same
+   * clamps, line-heights and tracking, and the same -0.625rem margin on the
+   * second line — so the mark here measures the same as the one the page opened
+   * on, ink gap included. See LandingPage.svelte for why the gap is a margin and
+   * how far it can go before the ink merges.
    */
   .end-mark__name {
     font-family: var(--font-stacked);
-    font-size: 2.125rem;
+    font-size: clamp(3.5rem, 13vw, 6rem);
     font-weight: 200;
+    line-height: 0.9;
+    letter-spacing: -0.07em;
+    color: var(--color-neutral-100);
+  }
+
+  .end-mark__studio {
+    font-family: var(--font-studio);
+    font-size: clamp(1.25rem, 3.2vw, 2.8125rem);
+    font-weight: 700;
     line-height: 1;
     letter-spacing: -0.05em;
     color: var(--color-neutral-100);
+    margin-top: -0.625rem;
   }
 
   /*
-   * The studio line carries more tracking than its size would suggest, because
-   * that is what separates it from a caption. The indent cancels the trailing
-   * letter-space so the line still centres.
+   * The space the mark takes has to come out of the body, or the column and the
+   * mark would sit on top of each other. The column is centred, so shrinking the
+   * area it is centred within lifts it by half as much — which is the shift
+   * needed to clear the mark at the bottom without shortening block 1 again.
+   *
+   * The reservation is bounded from both sides and is expressed in the same dvh
+   * the body is, so the relationship holds at any height: it has to be at least
+   * the mark plus its offset, and at most the slack the last stage's column
+   * leaves — which is 14.5% of the body against a 70.5% column.
+   *
+   * The reservation is transitioned so the lift arrives with the stage change
+   * rather than jumping ahead of the morph playing underneath it.
    */
-  .end-mark__studio {
-    font-family: var(--font-studio);
-    font-size: 0.6875rem;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.3em;
-    text-indent: 0.3em;
-    color: var(--color-neutral-100);
+  .blocks--end {
+    padding-bottom: 12.5dvh;
+    transition: padding-bottom var(--morph-duration) var(--morph-ease);
   }
 
   /*
-   * Below 40rem the freed space is proportionally smaller — the column fills
-   * 94% of a shorter body — so the mark comes down with the block rather than
-   * sitting on the row above it. Block 1 at the last step is shortened for the
-   * same reason there: the wordmark needs somewhere to be.
+   * Below 40rem the clamps resolve to their smallest ends and the mark is a
+   * fraction of the desktop height, so the reservation comes down with them.
    */
   @media (max-width: 40rem) {
-    .end-mark {
-      bottom: 0.75rem;
-      gap: 0.0625rem;
-    }
-
-    .end-mark__name {
-      font-size: 1.375rem;
-    }
-
-    .end-mark__studio {
-      font-size: 0.5rem;
-      letter-spacing: 0.26em;
-      text-indent: 0.26em;
+    .blocks--end {
+      padding-bottom: 9dvh;
     }
   }
 

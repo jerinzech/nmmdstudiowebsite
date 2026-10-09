@@ -66,25 +66,15 @@
   }
 
   /*
-   * Faint colour wash. Black is meant to dominate, so these sit low enough to
-   * read as a hint of hue in the corners rather than as lit areas of the page.
-   *
-   * The gradients are diffuse and heavily blurred, so what remains is a tint
-   * rather than a shape. Pushing the alphas down and the stops out keeps them off
-   * the centre of the viewport, which is where the wordmark and blocks sit.
+   * The wash: fixed to the viewport behind every layer, so the colour is
+   * always the same distance from the text no matter which stage is showing.
+   * pointer-events off so it never intercepts a click meant for the page.
    */
-  body::before {
-    content: '';
+  .wash {
     position: fixed;
     inset: 0;
     z-index: -2;
     pointer-events: none;
-    background:
-      radial-gradient(46% 42% at 22% 26%, rgb(79 70 229 / 0.075), transparent 72%),
-      radial-gradient(42% 38% at 78% 66%, rgb(16 185 129 / 0.055), transparent 72%),
-      radial-gradient(38% 34% at 64% 14%, rgb(217 119 6 / 0.04), transparent 72%),
-      radial-gradient(50% 44% at 50% 92%, rgb(56 189 248 / 0.045), transparent 74%);
-    filter: blur(8.125rem);
   }
 
   /*
