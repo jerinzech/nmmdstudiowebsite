@@ -174,39 +174,9 @@
     opacity: 0;
     transform: translateY(-0.75rem);
 
-    /*
-     * The shimmer.
-     *
-     * The wordmark is painted with a gradient rather than a flat colour, and the
-     * gradient carries a bright band partway along. `background-clip: text` keeps
-     * that gradient inside the glyphs instead of filling the link's box, so what
-     * moves across on hover is a highlight travelling over the letters.
-     *
-     * The background is oversized at 300% so only a slice of the gradient is
-     * visible at rest. Animating its position slides the bright band through the
-     * text; at rest the window sits over a flat section and the logo reads as a
-     * solid colour.
-     *
-     * The base colour is written as a literal rather than `currentColor`: the
-     * transparent text fill means there is no current colour left for it to
-     * resolve against once the clip is in place.
-     */
-    background-image: linear-gradient(
-      100deg,
-      var(--color-neutral-100) 40%,
-      #ffffff 50%,
-      var(--color-neutral-100) 60%
-    );
-    background-size: 300% 100%;
-    background-position: 100% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-
     transition:
       opacity 0.5s ease-out,
-      transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-      background-position 0.9s ease;
+      transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .nav--in .nav__logo {
@@ -214,12 +184,7 @@
     transform: none;
   }
 
-  .nav__logo:hover {
-    background-position: 0% 0;
-  }
-
   .nav__logo:focus-visible {
-    background-position: 0% 0;
     outline: 0.125rem solid var(--color-neutral-100);
     outline-offset: 0.25rem;
   }
@@ -240,16 +205,6 @@
    * measured from the off-screen copy, which pushes the letters after them
    * across — that displacement is what makes the word resolve rather than the
    * letters simply appearing.
-   *
-   * `visibility` is doing the real work of hiding them, and `opacity` is not
-   * enough on its own. The logo paints its wordmark with a gradient clipped to
-   * the text, and `background-clip: text` on the parent clips to the glyphs of
-   * the whole subtree — including these ones. A letter at `opacity: 0` contributes
-   * nothing of its own ink but its glyph outline still scopes the parent's
-   * background, so the gradient paints the closed letter at its zero-width
-   * position, sitting on top of the letters beside it. Hidden letters were
-   * faintly visible that way, between the N and the M. Taking the glyph out of
-   * the paint with `visibility: hidden` takes it out of the clip too.
    *
    * The transition lives on the letter and not on the hover rule so both
    * directions animate: leaving plays the same sequence backwards.

@@ -87,6 +87,11 @@
    * Film grain over the whole page, sitting above the text so the texture reads
    * as an emulsion over the render rather than a background pattern. Blend
    * mode keeps it from washing out the white glyphs.
+   *
+   * soft-light rather than overlay: overlay pushes midtones toward the extremes,
+   * which on a background this dark lifted the colour wash's value by roughly a
+   * third and washed the chroma out with it. soft-light moves the same grain
+   * far more gently and leaves the wash's hue where it was set.
    */
   body::after {
     content: '';
@@ -101,8 +106,8 @@
      * filling back in with high-frequency noise.
      */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.35' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.16;
-    mix-blend-mode: overlay;
+    opacity: 0.1;
+    mix-blend-mode: soft-light;
   }
 
   #app {

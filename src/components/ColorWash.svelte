@@ -43,30 +43,40 @@
    * what lands the field in the reference's band.
    */
   const BLOBS = [
-    // Upper band — the warm ambers, sitting above the middle.
-    { x: 0.5, y: 0.36, r: 0.17, fill: '#ffa800' },
-    { x: 0.58, y: 0.35, r: 0.16, fill: '#f99987' },
-    { x: 0.6, y: 0.41, r: 0.15, fill: '#511e1e' },
-    // Middle — the cool blues and the green, the densest part of the cluster.
-    { x: 0.4, y: 0.42, r: 0.17, fill: '#6c94fc' },
-    { x: 0.37, y: 0.49, r: 0.16, fill: '#6100ff' },
-    { x: 0.45, y: 0.49, r: 0.15, fill: '#4e7248' },
-    { x: 0.58, y: 0.5, r: 0.14, fill: '#9dde32' },
-    // Lower band — the pale yellows, trailing under the cluster.
-    { x: 0.58, y: 0.65, r: 0.15, fill: '#faef82' },
-    { x: 0.66, y: 0.63, r: 0.14, fill: '#fafbc1' },
+    // Painted back to front: the cool hues come last so they are not buried
+    // under the warm ones. Drawn in the opposite order every overlap averaged
+    // toward amber and the blues, purples and pinks disappeared entirely —
+    // measured, the whole cluster collapsed into a 0-54° band where the
+    // reference spans 220-353°.
+    //
+    // Warm back layer — ambers and the pale yellows, upper and lower bands.
+    { x: 0.46, y: 0.35, r: 0.1, fill: '#ffa800' },
+    { x: 0.5, y: 0.64, r: 0.09, fill: '#faef82' },
+    { x: 0.59, y: 0.62, r: 0.08, fill: '#fafbc1' },
+    { x: 0.55, y: 0.33, r: 0.09, fill: '#f99987' },
+    // Mid layer — the two darks and the green.
+    { x: 0.58, y: 0.4, r: 0.09, fill: '#511e1e' },
+    { x: 0.54, y: 0.52, r: 0.08, fill: '#9dde32' },
+    { x: 0.45, y: 0.47, r: 0.09, fill: '#4e7248' },
+    // Cool front layer — the blues and the purple, reading where the reference
+    // puts them: one up the left of the cluster, one at its heart.
+    { x: 0.41, y: 0.42, r: 0.11, fill: '#6c94fc' },
+    { x: 0.37, y: 0.48, r: 0.1, fill: '#6100ff' },
   ] as const;
 
   /**
-   * Overall dimmer for the wash.
+   * The wash is drawn at full opacity.
    *
-   * The reference background is far darker than full-strength colour: its
-   * brightest point measures a value of ~0.25 against a near-black surround,
-   * where a saturated blob at full opacity would sit near 1.0. Rather than
-   * shrink the blobs to nothing, they keep their size and the whole group is
-   * held down to that level.
+   * An earlier attempt dimmed it with `opacity` on the SVG, and that is the
+   * wrong lever: blending a saturated hue toward black at low opacity costs
+   * chroma along with lightness. Measured at opacity 0.3 the cluster's mean
+   * saturation was 0.07 where the reference sits at 0.23.
+   *
+   * The brightness is set by the blob radii instead — at full opacity a radius
+   * of ~0.12 of the viewport's short side lands the field's peak value at 0.20
+   * against the reference's 0.24, with the chroma already in the right range.
    */
-  const OPACITY = 0.3;
+  const OPACITY = 1;
 
   let w = $state(0);
   let h = $state(0);
