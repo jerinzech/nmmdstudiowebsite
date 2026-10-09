@@ -765,12 +765,25 @@
       if (document.visibilityState === 'hidden') hideGlow();
     };
 
+    /*
+     * The cursor can also leave the page by sliding straight off the viewport —
+     * out the side, or up past the top edge — without ever crossing an element
+     * boundary the section's own `mouseleave` would catch, and without the window
+     * losing focus. `mouseleave` on the document root is the one event that fires
+     * whenever the pointer exits the page by any route, so it is the reliable
+     * signal that the glow should go off. It bubbles nothing and fires once per
+     * exit, so it cannot fight the section's own handler.
+     */
+    const onDocumentLeave = () => hideGlow();
+
     window.addEventListener('blur', hideGlow);
     document.addEventListener('visibilitychange', onHidden);
+    document.addEventListener('mouseleave', onDocumentLeave);
 
     return () => {
       window.removeEventListener('blur', hideGlow);
       document.removeEventListener('visibilitychange', onHidden);
+      document.removeEventListener('mouseleave', onDocumentLeave);
     };
   });
 </script>
