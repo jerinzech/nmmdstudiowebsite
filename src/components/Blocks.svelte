@@ -182,14 +182,56 @@
    * 300px while its neighbour loses it. A single easing has to serve both without
    * either looking like it stopped and started.
    *
-   * The curve is a long symmetric settle. Its midpoint is at 0.5 rather than the
-   * usual front-loaded 0.25, so the two blocks are still moving at the same rate
-   * halfway through and the hand-off of height between them stays even. The short
-   * duration used before made the tall block visibly arrive before the short one
-   * finished leaving, which read as a jump rather than a morph.
+   * The second control point sits above 1, so the curve carries past its target
+   * and comes back onto it. That back-ease is the bounce: a block inflates past
+   * the height it is settling at, then eases down onto it, the way a balloon does
+   * when you stop blowing into it. The x control points are the same long settle
+   * that was here before the bounce, so the front of the curve launches exactly
+   * as it did; only the tail now overshoots.
+   *
+   * Everything in a step shares this one curve — the block's height, the radius
+   * that rides with it, the stack around it and the row underneath — which is
+   * what makes the bounce read as inflation rather than as each panel wobbling on
+   * its own. Sharing it also keeps them in agreement frame by frame: a block
+   * growing while its neighbour shrinks leaves the pair summing to the stack's own
+   * animated height at every instant, so nothing overlaps and the column never
+   * spills past the body.
+   *
+   * The overshoot is bounded by the shortest thing it has to fit around. A strip
+   * collapsing from 36.5svh to a 4.6svh tab travels 31.9svh, and the overshoot is
+   * a fraction of that travel, so too steep a curve carries the tab below its
+   * resting height and down to a sliver, clipping its title on the way back. 1.40
+   * tops out at 5.3%, which leaves a collapsing tab at 2.9svh — over the 2.6svh
+   * its 24px title needs, but only just. 1.45 bottoms the same tab out at 2.5svh
+   * and clips, and the classic back-ease (1.56, ~10%) drops it to 16px.
+   *
+   * The whole morph is deliberately brisk: the x control points still front-load
+   * the travel exactly as they did when this was a plain long settle, so the
+   * launch is unchanged and only the tail now overshoots. Shortening the duration
+   * from 1.2s to 0.6s is what turns that tail from a float into a bounce — the
+   * amplitude is the same and the reversal is twice as quick.
    */
-  const MORPH_DURATION = 1.2;
-  const MORPH_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const MORPH_DURATION = 0.6;
+  const MORPH_EASE = 'cubic-bezier(0.22, 1.40, 0.36, 1)';
+
+  /*
+   * The small row gets its own curve, and its overshoot is allowed to be larger.
+   *
+   * The row's overshoot has slack the stack does not. On the step where the row
+   * expands, the stack is shedding height faster than the row takes it, so the
+   * column's own height FALLS as the overshoot rises: it measures 85.0 − 2.3·v.
+   * The stack's curve is bounded by the strip that collapses beside it, but the
+   * row carries no strip and can overshoot freely — as long as its overshoot
+   * does not land early, while the stack is still tall. So this curve is
+   * back-loaded: a steep 1.60 overshoot on x control points well past the middle,
+   * which pushes the pop to the far end of the morph where the stack has already
+   * settled and the column is 2.3svh short of its ceiling.
+   *
+   * A front-loaded curve with the same overshoot peaks at a tenth of the way in,
+   * while the stack is still near its full height, and the two overshoots add up
+   * past the body.
+   */
+  const ROW_EASE = 'cubic-bezier(0.40, 1.60, 0.70, 1)';
 
 
   const BLOCKS = [
@@ -255,6 +297,233 @@
       apply();
     });
   };
+
+  /* ── the over-scroll bounce ───────────────────────────────────────────── */
+
+  /**
+   * The column that squashes, and the bounce currently playing.
+   *
+   * Over-scroll is dead by design: `overscroll-behavior: contain` on <html>
+   * stops the browser's own rubber-band from dragging the whole viewport, so
+   * there is nothing to feel when a gesture runs past the end of the runway.
+   * This fills that gap — the gesture is real, it just has no scroll left to
+   * buy, and the column answers it by pressing against the edge and springing
+   * back.
+   *
+   * It is a transform, not a height change, so it cannot fight the morph: a
+   * squash while a block is mid-morph just scales whatever height it happens to
+   * be at that instant.
+   */
+  let columnEl: HTMLElement | undefined = $state();
+
+  let bounce: Animation | undefined;
+  let bounceRunning = false;
+
+  /**
+   * How long the squash and the spring back take.
+   *
+   * Both amplitudes are bounded by the container around the column, and both
+   * bounds have to hold. `.blocks` clips at its padding box, so the column may
+   * widen no further than the 48px between its 1352px width and that box. More
+   * importantly it clips at its own 85dvh body, and the room to grow there is
+   * the slack on the side the spring is heading for.
+   *
+   * That slack is not a constant: at the last stage the column is 893px against
+   * a 918px body and has 12.4px to spare either side, but at the first stage it
+   * is 915px and has 1.5px. So the spring cannot be written down as a fixed
+   * amount — it is measured live against the room actually available, which is
+   * what keeps the top of the runway from shaving the glass off its own edges.
+   */
+  const BOUNCE_DURATION = 0.85;
+
+  /** How far the squash presses in, and how far the spring aims past it. */
+  const BOUNCE_SQUASH = 0.93;
+  const BOUNCE_SPRING_PX = 18;
+
+  /** How much the column widens as it squashes, as a fraction of the squash. */
+  const BOUNCE_WIDEN = 0.4;
+
+  const quietMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /**
+   * Press the column against `edge`, then spring it back.
+   *
+   * The squash narrows the height and widens the width by a fraction of the
+   * same amount, which is what makes it read as a body giving under pressure
+   * rather than a box being scaled. The origin is the edge being pressed
+   * against, so the column stays put where the finger is and the far side
+   * moves.
+   *
+   * The spring is measured, not assumed: with the origin pinned to one edge the
+   * overshoot pushes the far side out, and it may only push it as far as the
+   * body has slack on that side. Where there is room for the full 18px it gets
+   * it; where the first stage's column nearly fills its body the spring shrinks
+   * to almost nothing and the bounce plays as a squash and return instead. The
+   * squash itself always shortens the column, so it never needs this budget.
+   *
+   * `bounceRunning` refuses a second bounce while one is still playing, so
+   * holding a scroll wheel against the end does not stack a dozen squashes into
+   * each other. It clears on the animation finishing, which also means a bounce
+   * that is cancelled counts as finished and the next gesture is free to start
+   * a new one.
+   */
+  const bounceEdge = (edge: 'top' | 'bottom') => {
+    const el = columnEl;
+    const body = sectionEl;
+    if (!el || !body || bounceRunning || quietMotion()) return;
+
+    const rect = el.getBoundingClientRect();
+    const bounds = body.getBoundingClientRect();
+
+    /* Slack on the side the overshoot travels toward, measured from the edge in. */
+    const room =
+      edge === 'bottom'
+        ? Math.max(0, rect.top - bounds.top)
+        : Math.max(0, bounds.bottom - rect.bottom);
+
+    /*
+     * The spring is exactly the room available, less a sliver for sub-pixel
+     * rounding, and never more than the 18px it is designed to reach.
+     *
+     * Because the spring is a keyframe rather than something an easing is
+     * trusted to overshoot into, it is also the literal peak of the animation:
+     * every easing between the keyframes below keeps its control points inside
+     * 0-1, so nothing interpolates past it. That matters more than it sounds —
+     * an easing overshooting its endpoint carries the column a few pixels past
+     * a budget that was already spent to the pixel.
+     */
+    const spring = 1 + Math.max(0, Math.min(room - 1, BOUNCE_SPRING_PX)) / rect.height;
+
+    bounceRunning = true;
+    bounce?.cancel();
+
+    el.style.transformOrigin = edge === 'bottom' ? 'center bottom' : 'center top';
+
+    const wide = 1 + (1 - BOUNCE_SQUASH) * BOUNCE_WIDEN;
+    const thin = 1 - (spring - 1) * 0.55;
+    const near = 1 - (spring - 1) * 0.22;
+    const kick = 1 + (spring - 1) * 0.35;
+    const wideNear = 1 + (wide - 1) * 0.3;
+
+    bounce = el.animate(
+      [
+        { transform: 'none', easing: 'cubic-bezier(0.32, 0, 0.5, 0.4)' },
+        {
+          transform: `scaleY(${BOUNCE_SQUASH}) scaleX(${wide})`,
+          offset: 0.24,
+          /* Eases in: the release snaps out of the squash rather than drifting from it. */
+          easing: 'cubic-bezier(0.4, 0, 0.7, 0.5)',
+        },
+        {
+          transform: `scaleY(${spring}) scaleX(${thin})`,
+          offset: 0.44,
+          easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)',
+        },
+        {
+          transform: `scaleY(${near}) scaleX(${wideNear})`,
+          offset: 0.64,
+          easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)',
+        },
+        {
+          transform: `scaleY(${kick}) scaleX(${thin})`,
+          offset: 0.84,
+          easing: 'cubic-bezier(0.3, 0, 0.4, 0.5)',
+        },
+        { transform: 'none' },
+      ],
+      { duration: BOUNCE_DURATION * 1000, fill: 'none' },
+    );
+
+    const settle = () => {
+      bounceRunning = false;
+    };
+
+    bounce.finished.then(settle, settle);
+  };
+
+  /**
+   * Whether the runway is against the top or the bottom.
+   *
+   * The tolerance covers the rounding a snapped position leaves behind and the
+   * fractional pixel a devicePixelRatio of 2 or 3 introduces, so the last stage
+   * reads as the bottom even when scrollY stops a hair short of the maximum.
+   */
+  const EDGE = 4;
+  const atTop = () => scrollY <= EDGE;
+  const atBottom = () =>
+    scrollY >= document.documentElement.scrollHeight - window.innerHeight - EDGE;
+
+  const onWheel = (event: WheelEvent) => {
+    if (Math.abs(event.deltaY) < 8) return;
+
+    if (event.deltaY > 0) {
+      if (atBottom()) bounceEdge('bottom');
+    } else if (atTop()) {
+      bounceEdge('top');
+    }
+  };
+
+  /** Finger position of the last touchmove, so the drag is measured as a delta. */
+  let touchY: number | undefined;
+
+  const onTouchStart = (event: TouchEvent) => {
+    touchY = event.touches[0]?.clientY;
+  };
+
+  const onTouchMove = (event: TouchEvent) => {
+    const y = event.touches[0]?.clientY;
+    if (y === undefined || touchY === undefined) return;
+
+    /* Finger travelling up is a scroll down, and the reverse. */
+    const drag = touchY - y;
+    if (Math.abs(drag) < 12) return;
+
+    if (drag > 0) {
+      if (atBottom()) {
+        touchY = y;
+        bounceEdge('bottom');
+      }
+    } else if (atTop()) {
+      touchY = y;
+      bounceEdge('top');
+    }
+  };
+
+  const onKey = (event: KeyboardEvent) => {
+    const down = event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ';
+    const up = event.key === 'ArrowUp' || event.key === 'PageUp';
+
+    if (down) {
+      if (atBottom()) bounceEdge('bottom');
+    } else if (up && atTop()) {
+      bounceEdge('top');
+    }
+  };
+
+  /*
+   * The bounce listens only once the blocks are on screen. Through the loader
+   * and the hero the document is scroll-locked and the runway never moves, so
+   * a gesture there is answered by App's own stage change instead.
+   */
+  $effect(() => {
+    if (!revealed) return;
+
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('keydown', onKey, { passive: true });
+
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('keydown', onKey);
+
+      touchY = undefined;
+      bounce?.cancel();
+      bounceRunning = false;
+    };
+  });
 
   /*
    * Take-to-the-top: glide back to stage 1.
@@ -395,6 +664,7 @@
     --rise-ease: {RISE_EASE};
     --morph-duration: {MORPH_DURATION}s;
     --morph-ease: {MORPH_EASE};
+    --row-ease: {ROW_EASE};
     --stack-height: {svh(stackHeightFor(step))};
   "
   bind:this={sectionEl}
@@ -402,7 +672,7 @@
   onmouseleave={onGlowLeave}
   aria-label="Selected work and contact"
 >
-  <div class="column">
+  <div class="column" bind:this={columnEl}>
     <div class="stack">
     {#each BLOCKS as block, i (block.id)}
       {@const height = HEIGHTS[step][i]}
@@ -847,7 +1117,14 @@
 
     gap: var(--small-gap);
     height: var(--small-height);
-    transition: height var(--morph-duration) var(--morph-ease);
+
+    /*
+     * The row's own curve, not the stack's — see ROW_EASE. Its overshoot lands
+     * late in the morph, on the step where the row expands into its tiles, so
+     * the column is already two viewport-ish units taller by the time the pop
+     * arrives and has the room for it.
+     */
+    transition: height var(--morph-duration) var(--row-ease);
   }
 
   .block--small {
@@ -948,9 +1225,9 @@
     transition:
       opacity 0.7s ease-out,
       transform 1s var(--rise-ease),
-      height var(--morph-duration) var(--morph-ease),
-      border-radius var(--morph-duration) var(--morph-ease),
-      corner-shape var(--morph-duration) var(--morph-ease);
+      height var(--morph-duration) var(--row-ease),
+      border-radius var(--morph-duration) var(--row-ease),
+      corner-shape var(--morph-duration) var(--row-ease);
   }
 
   /*
