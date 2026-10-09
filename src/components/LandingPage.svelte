@@ -168,8 +168,12 @@
      *
      * A negative gap is not usable here: it is invalid CSS, resolves to `normal`
      * (0), and collapses the lines into each other by a further 17.6px.
+     *
+     * Below 1.1rem the glyph ink starts overlapping (the leading slack is
+     * already spent); 0.75rem tightens the pair by roughly a third while
+     * keeping the overlap light enough to read as one stacked wordmark.
      */
-    gap: 1.1rem;
+    gap: 0.75rem;
     width: 100%;
     min-height: 100vh;
     text-align: center;

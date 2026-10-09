@@ -12,7 +12,8 @@
   let {
     revealed = false,
     reset = 0,
-  }: { revealed?: boolean; reset?: number } = $props();
+    onstep,
+  }: { revealed?: boolean; reset?: number; onstep?: (step: number) => void } = $props();
 
   /*
    * Two emission units, one decision each.
@@ -50,12 +51,19 @@
    * moves height from block 1 into block 2. Step 2 flattens both of those and
    * hands the height to block 3. Step 3 gives the height back to block 1 and
    * hands the column over to the row of small blocks below.
+   *
+   * Block 1 at the last step is capped at 365px of the 1080px design viewport
+   * (33.8svh) rather than carrying the full quarter it used to. The column at
+   * that stage filled its 85dvh body almost exactly — 12.4px of slack against a
+   * 918px body — which left the wordmark footer crowded up against the block
+   * above it. Taking the block back to 365px drops the column to 70.5svh and
+   * leaves 78px of slack, which is the room the footer reads in.
    */
   const DESKTOP_HEIGHTS = [
     [64, 4.6, 4.6],
     [18.5, 50, 4.6],
     [18.5, 18.5, 36.5],
-    [46, 4.6, 4.6],
+    [33.8, 4.6, 4.6],
   ] as const;
 
   /*
@@ -281,7 +289,15 @@
       HEIGHTS.length - 1,
     );
 
-    if (next !== step) step = next;
+    if (next !== step) {
+      step = next;
+
+      /*
+       * Report the stage up so the navbar can dim at the last one. App owns no
+       * position of its own — it mirrors this back.
+       */
+      onstep?.(next);
+    }
   };
 
   const onScroll = () => {
@@ -837,6 +853,28 @@
       <path d="M12 19V5M5 12l7-7 7 7" />
     </svg>
   </button>
+
+  <!--
+    The closing wordmark.
+
+    It belongs to the last stage and nowhere else, so it lives here rather than in
+    the footer: this is the only place that knows which stage the runway is on,
+    exactly as with the take-to-the-top button. The footer's own line — "building
+    with ❤️ from BLR and GNB" — stays on screen through every stage.
+
+    It is placed inside the body rather than in the footer band because the band
+    is 5dvh and holds one line of text. The last stage's column is deliberately
+    short (block 1 is capped at 365px) and leaves 78px of slack below it, and that
+    slack is what the wordmark sits in.
+  -->
+  <div
+    class="end-mark"
+    class:end-mark--in={step === HEIGHTS.length - 1}
+    aria-hidden="true"
+  >
+    <span class="end-mark__name">NAMMADE</span>
+    <span class="end-mark__studio">STUDIO</span>
+  </div>
 </section>
 
 <style>
@@ -849,6 +887,9 @@
     max-width: var(--max-width);
     margin: 0 auto;
     padding: 0 1.5rem;
+
+    /* Anchors the closing wordmark, which is placed against the body's bottom. */
+    position: relative;
 
     /*
      * The body of the three constant sections: 85vh of the spec's 10/85/5
@@ -1446,6 +1487,106 @@
   .to-top:focus-visible {
     outline: 0.125rem solid var(--color-neutral-100);
     outline-offset: 0.25rem;
+  }
+
+  /*
+   * The closing wordmark, in the same pairing as the landing hero: the name in
+   * the condensed face with the studio line under it, so the page closes on the
+   * mark it opened with.
+   *
+   * Out of flow, anchored to the bottom of the body. Left in flow it would
+   * consume height at every stage and push the column up, and it is only ever
+   * wanted at the last one.
+   *
+   * The bubble is a back-eased transform rather than a keyframe animation, so it
+   * plays in reverse on the way out — leaving the last stage folds the wordmark
+   * back down instead of dropping it.
+   *
+   * The start is deliberately far from rest. A bezier's overshoot is a fraction
+   * of the distance travelled, not of the resting value, so a scale that only
+   * has to move from 0.86 to 1 overshoots by 2% and reads as a fade that happens
+   * to scale. Travelling from 0.5 instead gives it 0.5 to overshoot against and
+   * the mark inflates to 8% past its size before settling.
+   */
+  .end-mark {
+    position: absolute;
+    left: 50%;
+    bottom: 1rem;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+
+    /* Decorative: the name is already in the navbar's accessible label. */
+    pointer-events: none;
+
+    opacity: 0;
+    transform: translate(-50%, 1rem) scale(0.5);
+
+    transition:
+      opacity 0.35s ease-out,
+      transform 0.7s cubic-bezier(0.2, 1.75, 0.35, 1);
+  }
+
+  .end-mark--in {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  /*
+   * The name carries the navbar logo's face, weight and tracking so the two read
+   * as one mark, and the sizes are budgeted against the 78px the last stage
+   * frees: 34 + 2 + 11 = 47px, leaving room either side.
+   */
+  .end-mark__name {
+    font-family: var(--font-stacked);
+    font-size: 2.125rem;
+    font-weight: 200;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    color: var(--color-neutral-100);
+  }
+
+  /*
+   * The studio line carries more tracking than its size would suggest, because
+   * that is what separates it from a caption. The indent cancels the trailing
+   * letter-space so the line still centres.
+   */
+  .end-mark__studio {
+    font-family: var(--font-studio);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+    color: var(--color-neutral-100);
+  }
+
+  /*
+   * Below 40rem the freed space is proportionally smaller, so the mark comes
+   * down with it rather than crowding the row above.
+   */
+  @media (max-width: 40rem) {
+    .end-mark {
+      gap: 0.0625rem;
+    }
+
+    .end-mark__name {
+      font-size: 1.5rem;
+    }
+
+    .end-mark__studio {
+      font-size: 0.5rem;
+      letter-spacing: 0.26em;
+      text-indent: 0.26em;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .end-mark {
+      transition: none;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

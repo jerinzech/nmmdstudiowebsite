@@ -3,6 +3,9 @@
    * Slim closing line for the page. Plain text with no links, so it is a single
    * paragraph rather than a nav.
    *
+   * It is always on screen through the homepage — the wordmark that joins it at
+   * the last stage lives in Blocks.svelte, where the stage is known.
+   *
    * It shares the homepage's reveal flag so it fades in with the blocks instead
    * of being visible behind the landing page.
    */

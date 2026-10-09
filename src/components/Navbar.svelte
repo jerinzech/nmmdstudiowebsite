@@ -11,8 +11,9 @@
    */
   let {
     revealed = false,
+    last = false,
     onlogo,
-  }: { revealed?: boolean; onlogo?: () => void } = $props();
+  }: { revealed?: boolean; last?: boolean; onlogo?: () => void } = $props();
 
   /*
    * The landing screen's sequence, on a curve that bounces.
@@ -59,7 +60,7 @@
   });
 </script>
 
-<header class="nav" class:nav--in={revealed}>
+<header class="nav" class:nav--in={revealed} class:nav--last={last}>
   <nav class="nav__bar">
     <a
       class="nav__logo"
@@ -115,12 +116,23 @@
    *
    * The section itself centres the bar, so the logo lands mid-section rather
    * than pinned under the top edge.
+   *
+   * At the last stage the bar dims rather than vanishing: the logo stays where
+   * it is and stays clickable, because it is still the way back up, but it stops
+   * competing with the wordmark the page closes on. The dim is on the header and
+   * not the logo, so the logo's own reveal transition is untouched.
    */
   .nav {
     height: 10vh;
     height: 10dvh;
     display: grid;
     place-items: center;
+
+    transition: opacity 0.7s ease-out;
+  }
+
+  .nav--last {
+    opacity: 0.22;
   }
 
   .nav__bar {

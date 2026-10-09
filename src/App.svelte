@@ -98,6 +98,17 @@
   let logoResets = $state(0);
 
   /*
+   * Which stage the runway is on, mirrored up from Blocks.
+   *
+   * Blocks owns the position — it reads it off the snap — and App only needs it
+   * here so the navbar can dim once the last stage arrives.
+   */
+  let step = $state(0);
+
+  /* One fewer than the number of stages; keep in step with Blocks' HEIGHTS table. */
+  const LAST_STAGE = 3;
+
+  /*
    * DEBUG: the toggle for the layout guidelines.
    *
    * `guides` gates the `xray` class on #mainapp; the whole overlay — borders,
@@ -116,7 +127,11 @@
   <LoadingPage oncomplete={() => (stage = 'landing')} />
 
   <div class="page">
-    <Navbar revealed={stage === 'home'} onlogo={() => (logoResets += 1)} />
+    <Navbar
+      revealed={stage === 'home'}
+      last={step === LAST_STAGE}
+      onlogo={() => (logoResets += 1)}
+    />
 
     <LandingPage
       revealed={stage !== 'loading'}
@@ -124,7 +139,7 @@
       onexit={() => (stage = 'home')}
     />
 
-    <Blocks revealed={stage === 'home'} reset={logoResets} />
+    <Blocks revealed={stage === 'home'} reset={logoResets} onstep={(s) => (step = s)} />
     <Footer revealed={stage === 'home'} />
   </div>
 
