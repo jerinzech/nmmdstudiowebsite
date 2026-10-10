@@ -78,7 +78,16 @@
    */
   .wash {
     position: fixed;
-    inset: 0;
+    /*
+     * Anchored off-screen by the component's own padding, rather than stretched
+     * with inset:0. Stretching it to the viewport box forced the padded viewBox
+     * to letterbox inside that box, which moved the blob field down and right
+     * of where it belongs. Offsetting the box itself keeps the viewBox's origin
+     * on the viewport's top-left corner, so the blobs sit exactly where the
+     * viewport fractions put them while their halos fade out past the edge.
+     */
+    top: calc(-1 * var(--wash-pad));
+    left: calc(-1 * var(--wash-pad));
     z-index: -2;
     pointer-events: none;
   }
@@ -106,7 +115,7 @@
      * filling back in with high-frequency noise.
      */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.35' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.045;
+    opacity: 0.11;
     mix-blend-mode: soft-light;
   }
 
