@@ -36,11 +36,13 @@
    * that image, every colour sits inside a tight box around the middle
    * (x 0.31-0.71, y 0.29-0.75) and nothing reaches the corners.
    *
-   * The radii are small for the same reason the wash is dim: a Gaussian blur
-   * spreads a shape's energy, so a lighter peak needs a smaller source. At
-   * sigma=200 a 250px-radius blob holds ~50% of its solid value and reads as a
-   * strong colour; these sit at roughly 0.14-0.17 of the short side, which is
-   * what lands the field in the reference's band.
+   * The radii are small because the 200px blur does the work. A Gaussian spreads
+   * a shape's energy over a wider area, so the peak lightness at the core falls
+   * as the blur grows and a small source is all that is needed to reach the
+   * reference's dim band: at sigma=200 a radius of ~0.08 of the short side
+   * already lands the field's peak value near 0.23 against the reference's 0.24.
+   * Going smaller than this starts costing saturation, which is the one thing
+   * the reference does keep.
    */
   const BLOBS = [
     // Painted back to front: the cool hues come last so they are not buried
@@ -50,18 +52,18 @@
     // reference spans 220-353°.
     //
     // Warm back layer — ambers and the pale yellows, upper and lower bands.
-    { x: 0.46, y: 0.35, r: 0.1, fill: '#ffa800' },
-    { x: 0.5, y: 0.64, r: 0.09, fill: '#faef82' },
-    { x: 0.59, y: 0.62, r: 0.08, fill: '#fafbc1' },
-    { x: 0.55, y: 0.33, r: 0.09, fill: '#f99987' },
+    { x: 0.46, y: 0.35, r: 0.075, fill: '#ffa800' },
+    { x: 0.5, y: 0.64, r: 0.068, fill: '#faef82' },
+    { x: 0.59, y: 0.62, r: 0.06, fill: '#fafbc1' },
+    { x: 0.55, y: 0.33, r: 0.068, fill: '#f99987' },
     // Mid layer — the two darks and the green.
-    { x: 0.58, y: 0.4, r: 0.09, fill: '#511e1e' },
-    { x: 0.54, y: 0.52, r: 0.08, fill: '#9dde32' },
-    { x: 0.45, y: 0.47, r: 0.09, fill: '#4e7248' },
+    { x: 0.58, y: 0.4, r: 0.068, fill: '#511e1e' },
+    { x: 0.54, y: 0.52, r: 0.06, fill: '#9dde32' },
+    { x: 0.45, y: 0.47, r: 0.068, fill: '#4e7248' },
     // Cool front layer — the blues and the purple, reading where the reference
     // puts them: one up the left of the cluster, one at its heart.
-    { x: 0.41, y: 0.42, r: 0.11, fill: '#6c94fc' },
-    { x: 0.37, y: 0.48, r: 0.1, fill: '#6100ff' },
+    { x: 0.41, y: 0.42, r: 0.083, fill: '#6c94fc' },
+    { x: 0.37, y: 0.48, r: 0.075, fill: '#6100ff' },
   ] as const;
 
   /**

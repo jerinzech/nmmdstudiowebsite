@@ -111,13 +111,13 @@
       [53, 7.6, 7.6],
       [21.2, 40, 7.6],
       [21.2, 21.2, 40],
-      [43, 7.6, 7.6],
+      [34, 7.6, 7.6],
     ],
     tablet: [
       [60, 5, 5],
       [20, 55, 5],
       [20, 20, 55],
-      [50, 5, 5],
+      [44, 5, 5],
     ],
     laptop: [
       [64, 4.6, 4.6],
@@ -1087,6 +1087,7 @@
      */
     background: transparent;
     backdrop-filter: blur(1.5rem);
+    -webkit-backdrop-filter: blur(1.5rem);
 
     /*
      * The bubble-up entrance.
@@ -1109,6 +1110,35 @@
       padding var(--morph-duration) var(--morph-ease),
       border-radius var(--morph-duration) var(--morph-ease),
       corner-shape var(--morph-duration) var(--morph-ease);
+  }
+
+  /*
+   * Frosted grain on the glass itself.
+   *
+   * The page-wide grain is deliberately faint — it is there as an emulsion over
+   * the render, not as a texture — so the blocks would read as flat panes next
+   * to it. Real frosted glass scatters light, and a scatter surface is not
+   * smooth: this paints the same noise pattern inside each block at a much
+   * higher opacity, which is what gives the panes their grain.
+   *
+   * It sits on ::before because ::after is already the cursor-tracking glow
+   * ring. The grain is a separate compositing layer from the backdrop-filter,
+   * so it does not get blurred by it; `inset: 0` seats it over the whole pane
+   * and the block's own overflow and corner-shape clip it to the glass.
+   *
+   * overlay, not soft-light: inside the block the noise should read as scatter
+   * against the darker glass, and overlay gives that bite where soft-light —
+   * the right call for the faint page grain — would go nearly invisible.
+   */
+  .block::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    opacity: 0.34;
+    mix-blend-mode: overlay;
   }
 
   .blocks--in .block {
@@ -1213,6 +1243,10 @@
     font-family: var(--font-display);
     font-weight: 500;
     line-height: 1.15;
+
+    /* Above the frosted grain on ::before, which is a positioned layer. */
+    position: relative;
+    z-index: 1;
   }
 
   .block h2 {
@@ -1236,6 +1270,10 @@
     font-size: 0.9375rem;
     line-height: 1.6;
     color: var(--color-neutral-400);
+
+    /* Above the frosted grain on ::before, which is a positioned layer. */
+    position: relative;
+    z-index: 1;
   }
 
   /*
@@ -1267,6 +1305,9 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+
+    /* Above the frosted grain on ::before. */
+    z-index: 1;
 
     font-family: var(--font-borel);
     font-size: 6.25rem;
@@ -1801,18 +1842,37 @@
    *
    * The reservation is transitioned so the lift arrives with the stage change
    * rather than jumping ahead of the morph playing underneath it.
+   *
+   * Per class, because the mark's own size is per class (the clamp resolves to
+   * 56px on a phone and 88px on a desktop) while the column's slack is not —
+   * measured at 390×844 the mark measured 30px and still overlapped the 64px
+   * small row by 10px, because the phone's reservation was a share of a body
+   * that is 717px tall against the desktop's tuned ratio. The tablet band needs
+   * its own value for the same reason: its row squares off into tiles at the
+   * last step and sits 51px tall against a mark that is 45px.
    */
   .blocks--end {
     padding-bottom: 12.5dvh;
     transition: padding-bottom var(--morph-duration) var(--morph-ease);
   }
 
+  .blocks[style*='--device: tablet'].blocks--end {
+    padding-bottom: 13dvh;
+  }
+
   /*
    * Below the phone band the clamps resolve to their smallest ends and the
    * mark is a fraction of the desktop height, so the reservation comes down
    * with them — keyed off the device class, like every other per-band number.
+   *
+   * The phone's mark measures 60px (56px name + the negative-margin overlap)
+   * and sits 16px up from the body's floor, so it needs 76px of room below the
+   * small row. Measured at 390×844 the row's bottom left only 54px of body
+   * beneath it, so the mark and the row overlapped by 23px no matter what the
+   * column's own slack was. 12dvh of that body is 101px — enough for the mark
+   * to sit clear under the row at every phone height the class covers.
    */
   .blocks[style*='--device: phone'].blocks--end {
-    padding-bottom: 9dvh;
+    padding-bottom: 12dvh;
   }
 </style>

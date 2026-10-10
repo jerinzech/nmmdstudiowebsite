@@ -178,7 +178,13 @@
      */
     gap: 0;
     width: 100%;
+    /*
+     * dvh over vh: the dynamic viewport tracks the space the mobile browser's
+     * collapsed address bar actually leaves, where vh runs underneath it — a
+     * hero sized in vh is taller than the visible area on a phone.
+     */
     min-height: 100vh;
+    min-height: 100dvh;
     text-align: center;
   }
 
