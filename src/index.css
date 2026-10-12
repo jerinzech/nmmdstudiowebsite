@@ -348,9 +348,9 @@
 /*
  * Names as the class they come from, plus the size readout where one applies.
  * The blocks carry one class per element (block--work/studio/contact,
- * block--s0..s4) so each is individually addressable; the generic rules come
- * first and the specific ones after, so the later selector wins at equal
- * specificity.
+ * block--instagram..block--x) so each is individually addressable; the generic
+ * rules come first and the specific ones after, so the later selector wins at
+ * equal specificity.
  *
  * --debug-size is set alongside --debug-label so an individually named block
  * can inherit its size readout from the generic rule and only override the
@@ -376,11 +376,11 @@
 .block--studio { --debug-label: '.block--studio'; }
 .block--contact { --debug-label: '.block--contact'; }
 .block--small { --debug-label: '.block--small'; --debug-size: ' · h:' var(--small-height) ' · w:' var(--small-width); }
-.block--s0 { --debug-label: '.block--s0'; }
-.block--s1 { --debug-label: '.block--s1'; }
-.block--s2 { --debug-label: '.block--s2'; }
-.block--s3 { --debug-label: '.block--s3'; }
-.block--s4 { --debug-label: '.block--s4'; }
+.block--instagram { --debug-label: '.block--instagram'; }
+.block--dribbble { --debug-label: '.block--dribbble'; }
+.block--email { --debug-label: '.block--email'; }
+.block--behance { --debug-label: '.block--behance'; }
+.block--x { --debug-label: '.block--x'; }
 
 /* Corners staggered so nested tags do not sit on the same spot. */
 #mainapp.xray::before { top: auto; left: auto; bottom: 0; right: 0; }

@@ -253,6 +253,40 @@
   const SMALL_GAP_N = $derived(SMALL_GAPS[device]);
   const SMALL_HEIGHTS = $derived(SMALL_HEIGHT_TABLES[device]);
 
+  /*
+   * The small row's targets: five links, in the order they sit left to right.
+   *
+   * The row is the only part of the homepage that leaves the site, so its
+   * destinations are written down once, here, as data — every tile is an anchor
+   * that reads its href from this table.
+   *
+   * The hrefs are the services' own front doors rather than the studio's pages
+   * on them, because the accounts are not settled yet. Swapping in the real
+   * handles is a table edit and nothing else: no markup, no CSS and no logic
+   * changes shape.
+   *
+   * `mailto:` for the email tile: there is no page to open, so it hands the
+   * address to the mail client instead of a new tab. The address itself is a
+   * placeholder until the studio's inbox is decided.
+   */
+  const LINKS = [
+    { id: 'instagram', label: 'instagram', href: 'https://www.instagram.com/' },
+    { id: 'dribbble', label: 'dribbble', href: 'https://dribbble.com/' },
+    { id: 'email', label: 'email', href: 'mailto:hello@nmmd.studio' },
+    { id: 'behance', label: 'behance', href: 'https://www.behance.net/' },
+    { id: 'x', label: 'x', href: 'https://x.com/' },
+  ] as const;
+
+  /*
+   * The row shows as many tiles as its band fits: five everywhere but the
+   * tablet's portrait column, which carries four (see SMALL_COUNTS).
+   *
+   * Taken from the head of the table rather than sampled across it, so the
+   * tablet's four are the first four above and nothing silently rearranges
+   * itself between bands.
+   */
+  const SMALL = $derived(LINKS.slice(0, SMALL_COUNT));
+
   /**
    * Height of a step's stack: its blocks plus the gaps between them. All the
    * terms are vh numbers, so the sum emits directly as vh.
@@ -334,10 +368,6 @@
     { id: 'studio', label: 'work', body: 'Placeholder copy about the practice, how it works, and who it works with.' },
     { id: 'contact', label: 'team', body: 'Placeholder copy for enquiries, with a place for an email or a form.' },
   ];
-
-  const SMALL = $derived(
-    Array.from({ length: SMALL_COUNT }, (_, i) => ({ id: `s${i}`, label: `Block ${i + 4}` })),
-  );
 
   /*
    * Which stage the column is currently showing.
@@ -925,11 +955,21 @@
       {/each}
     </div>
 
+    <!--
+      The small row: one anchor per link, in LINKS. The band decides how many
+      fit, and SMALL is already sliced to it.
+    -->
     <div class="row" class:row--expanded={step === HEIGHTS.length - 1}>
       {#each SMALL as block, i (block.id)}
-        <article class="block block--small block--{block.id}" style="--index: {i}">
+        <a
+          class="block block--small block--{block.id}"
+          style="--index: {i}"
+          href={block.href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <h3 class="block__title">{block.label}</h3>
-        </article>
+        </a>
       {/each}
     </div>
   </div>
@@ -1437,6 +1477,24 @@
     padding: 0 1.25rem;
 
     /*
+     * Centred, not the stack blocks' left-aligned label.
+     *
+     * `justify-content` above already seats the title on the tile's vertical
+     * middle for both the strip and the square states; this takes the horizontal
+     * axis too, so a name reads from the middle of its own box rather than
+     * hanging off the left edge. The h3 stretches to the tile's full width as a
+     * flex item, so the centring is `text-align` on the box rather than on the
+     * title.
+     *
+     * The anchor reset rides with it: an <a> would otherwise arrive in the
+     * browser's own link colour with an underline, and the row's titles are
+     * meant to read exactly as the stack's do.
+     */
+    text-align: center;
+    text-decoration: none;
+    color: inherit;
+
+    /*
      * Pill-shaped while the row is a strip of tabs, squarer once it expands into
      * tiles. `--small-radius` carries the per-step value, written as the exact
      * rendered radius per step (see SMALL_RADII) so it interpolates smoothly.
@@ -1447,6 +1505,13 @@
      * only for that. The pill value has to actually reach the element.
      */
     border-radius: var(--small-radius);
+  }
+
+  /* The row is keyboard-reachable now, so it needs the same focus ring the
+     take-to-the-top button carries. */
+  .row .block--small:focus-visible {
+    outline: 0.125rem solid var(--color-neutral-100);
+    outline-offset: 0.25rem;
   }
 
   .row .block--small {
@@ -1555,10 +1620,29 @@
   .blocks[style*='--device: phone'] .block--small {
     padding: 0 0.25rem;
     border-radius: 1.75rem;
+
+    /* The tile is its title's container, so the phone label can size itself
+       against the pill's own width — see the h3 rule below. */
+    container-type: inline-size;
   }
 
   .blocks[style*='--device: phone'] .block--small h3 {
-    font-size: 0.75rem;
+    /*
+     * Sized against the tile's own width rather than a fixed rem.
+     *
+     * Five names across a phone band leaves 46px of pill to hold "instagram"
+     * in at 320px, and 68px at 430px. Measured, that label wants 7.25px to fit
+     * the narrow pill and 11.75px to fill the wide one, so no single fixed size
+     * is right: 0.75rem (the size the wider bands use) needs 59px and clips the
+     * word at every phone width, and a fixed 9px still clips below 360px.
+     *
+     * The tile is made its title's container and the title is set as a share of
+     * the tile's content box, so it always fits — 19cqw is measured to sit just
+     * under the label's own limit at every width in the band — and reads
+     * larger where there is room. The design's 0.75rem stays the ceiling, which
+     * is also the point past which the label fits without any scaling.
+     */
+    font-size: min(0.75rem, 19cqw);
     white-space: nowrap;
   }
 
