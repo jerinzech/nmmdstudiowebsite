@@ -455,7 +455,8 @@
   let bounceRunning = false;
 
   /**
-   * How long the squash and the spring back take.
+   * How long the press into the edge takes, and how long one full cycle of the
+   * release takes.
    *
    * Both amplitudes are bounded by the container around the column, and both
    * bounds have to hold. `.blocks` clips at its padding box, so the column may
@@ -469,16 +470,38 @@
    * amount — it is measured live against the room actually available, which is
    * what keeps the top of the runway from shaving the glass off its own edges.
    */
-  const BOUNCE_DURATION = 0.85;
+  const BOUNCE_PRESS = 0.2;
+  const BOUNCE_PERIOD = 0.42;
 
   /** How far the squash presses in, and how far the spring aims past it. */
   const BOUNCE_SQUASH = 0.93;
   const BOUNCE_SPRING_PX = 18;
 
-  /** How much the column widens as it squashes, as a fraction of the squash. */
-  const BOUNCE_WIDEN = 0.4;
+  /** How much the width mirrors the height's offset, widening as it shortens. */
+  const BOUNCE_WIDEN = 0.45;
+
+  /**
+   * The release is cut at the first rest crossing whose remaining swing has
+   * fallen to this share of the dip, and never past BOUNCE_RELEASE_MAX — a
+   * spring with almost no room to overshoot is a heavily damped one and ends
+   * early, while a very short column against the full 18px is lively and wants
+   * a ceiling on how long it may ring.
+   */
+  const BOUNCE_TAIL = 0.0012;
+  const BOUNCE_RELEASE_MAX = 1.0;
+
+  /** The damping is held between these, in either direction of the measurement. */
+  const BOUNCE_DECAY_MIN = 3;
+  const BOUNCE_DECAY_MAX = 30;
 
   const quietMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /*
+   * One frame of the evaluated bounces below: a transform, where along the
+   * animation it sits, and the easing into the next frame. Written structurally
+   * rather than as DOM's Keyframe, which exists only as a type.
+   */
+  type BounceFrame = { transform: string; offset?: number; easing?: string };
 
   /**
    * Press the column against `edge`, then spring it back.
@@ -520,12 +543,12 @@
      * The spring is exactly the room available, less a sliver for sub-pixel
      * rounding, and never more than the 18px it is designed to reach.
      *
-     * Because the spring is a keyframe rather than something an easing is
-     * trusted to overshoot into, it is also the literal peak of the animation:
-     * every easing between the keyframes below keeps its control points inside
-     * 0-1, so nothing interpolates past it. That matters more than it sounds —
-     * an easing overshooting its endpoint carries the column a few pixels past
-     * a budget that was already spent to the pixel.
+     * Because the release below is evaluated rather than eased, the spring is
+     * also the literal peak of the curve: the damped swing cannot carry past
+     * its own first overshoot, and every swing after it is smaller. That
+     * matters more than it sounds — an easing overshooting its endpoint
+     * carries the column a few pixels past a budget that was already spent to
+     * the pixel.
      */
     const spring = 1 + Math.max(0, Math.min(room - 1, BOUNCE_SPRING_PX)) / rect.height;
 
@@ -534,40 +557,95 @@
 
     el.style.transformOrigin = edge === 'bottom' ? 'center bottom' : 'center top';
 
-    const wide = 1 + (1 - BOUNCE_SQUASH) * BOUNCE_WIDEN;
-    const thin = 1 - (spring - 1) * 0.55;
-    const near = 1 - (spring - 1) * 0.22;
-    const kick = 1 + (spring - 1) * 0.35;
-    const wideNear = 1 + (wide - 1) * 0.3;
+    /*
+     * The release is a damped spring released from rest, evaluated as a curve
+     * rather than choreographed as keyframes:
+     *
+     *   offset(t) = −dip·e^(−λt)·(cos ωt + (λ/ω)·sin ωt)
+     *
+     * The earlier bounce was five keyframes joined by easings, and every join
+     * began its easing from zero velocity — the curve stalled at each seam,
+     * which read as the bounce stuttering rather than flowing. A spring
+     * released from rest starts at zero velocity too, so the press below can
+     * decelerate into the squash and hand over with no seam at all: the
+     * squash, the swing past rest and the settle are one continuous motion.
+     */
+    const dip = 1 - BOUNCE_SQUASH;
+    const over = Math.min(spring - 1, dip * 0.9);
+    const omega = (2 * Math.PI) / BOUNCE_PERIOD;
 
-    bounce = el.animate(
-      [
-        { transform: 'none', easing: 'cubic-bezier(0.32, 0, 0.5, 0.4)' },
-        {
-          transform: `scaleY(${BOUNCE_SQUASH}) scaleX(${wide})`,
-          offset: 0.24,
-          /* Eases in: the release snaps out of the squash rather than drifting from it. */
-          easing: 'cubic-bezier(0.4, 0, 0.7, 0.5)',
-        },
-        {
-          transform: `scaleY(${spring}) scaleX(${thin})`,
-          offset: 0.44,
-          easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)',
-        },
-        {
-          transform: `scaleY(${near}) scaleX(${wideNear})`,
-          offset: 0.64,
-          easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)',
-        },
-        {
-          transform: `scaleY(${kick}) scaleX(${thin})`,
-          offset: 0.84,
-          easing: 'cubic-bezier(0.3, 0, 0.4, 0.5)',
-        },
-        { transform: 'none' },
-      ],
-      { duration: BOUNCE_DURATION * 1000, fill: 'none' },
-    );
+    /*
+     * The damping is read off the measured overshoot. This spring's extrema sit
+     * exactly at ωt = kπ and decay by e^(−λπ/ω) per half-cycle, so the first
+     * overshoot is dip·e^(−λπ/ω): holding that against the measured spring
+     * gives λ = (ω/π)·ln(dip/over), and the overshoot lands on its budget to
+     * the pixel. Clamped from both sides: where the edge has no room the
+     * damping runs high and the release is spent before it can overshoot at
+     * all — the squash-and-return the first stage plays — and a short column
+     * against the full 18px is kept from ringing on for seconds.
+     */
+    const decay =
+      over > 0
+        ? Math.min(
+            Math.max((omega / Math.PI) * Math.log(dip / over), BOUNCE_DECAY_MIN),
+            BOUNCE_DECAY_MAX,
+          )
+        : BOUNCE_DECAY_MAX;
+
+    /*
+     * The release ends at a rest crossing, where the offset is exactly zero —
+     * no settle keyframe, no snap. Crossings sit at ωt = π − atan(ω/λ) + kπ,
+     * and the release is the first one whose remaining swing — the next
+     * extremum, dip·e^(−λ(k+1)π/ω) — has fallen under BOUNCE_TAIL: whatever
+     * the spring could still rise from there is under a pixel, so cutting it
+     * is invisible. The ceiling ends even the liveliest spring at its last
+     * crossing under it.
+     */
+    let release = 0;
+    for (let k = 0; k < 64; k++) {
+      const t = (Math.PI - Math.atan(omega / decay) + k * Math.PI) / omega;
+      if (t > BOUNCE_RELEASE_MAX) break;
+      release = t;
+      if (dip * Math.exp((-decay * (k + 1) * Math.PI) / omega) <= BOUNCE_TAIL) break;
+    }
+
+    const offset = (t: number) =>
+      -dip * Math.exp(-decay * t) * (Math.cos(omega * t) + (decay / omega) * Math.sin(omega * t));
+
+    const total = BOUNCE_PRESS + release;
+
+    const frames: BounceFrame[] = [
+      /* The press: out of rest and decelerating into the squash, to hand over at zero velocity. */
+      { transform: 'none', easing: 'cubic-bezier(0.3, 0, 0.45, 1)' },
+      {
+        transform: `scaleY(${BOUNCE_SQUASH}) scaleX(${1 + dip * BOUNCE_WIDEN})`,
+        offset: BOUNCE_PRESS / total,
+      },
+    ];
+
+    /*
+     * The release, sampled at frame rate. Straight chords between samples a
+     * sixtieth of a second apart sit on the curve to well under a pixel, so no
+     * easing is needed between them — the curve itself is the easing, and
+     * there is no join left to kink. The width mirrors the height's offset
+     * through BOUNCE_WIDEN: the squash widens as it shortens, the overshoot
+     * thins as it grows, the volume-preserving give the old wide/thin
+     * keyframes choreographed by hand.
+     */
+    const steps = Math.ceil(release * 60);
+    for (let i = 1; i <= steps; i++) {
+      const t = (release * i) / steps;
+      const off = offset(t);
+      frames.push({
+        transform: `scaleY(${1 + off}) scaleX(${1 - off * BOUNCE_WIDEN})`,
+        offset: (BOUNCE_PRESS + t) / total,
+      });
+    }
+
+    /* The last sample lands on the rest crossing; make it exact. */
+    frames[frames.length - 1] = { transform: 'none' };
+
+    bounce = el.animate(frames, { duration: total * 1000, fill: 'none' });
 
     const settle = () => {
       bounceRunning = false;
@@ -687,7 +765,7 @@
   let toTopBouncing = false;
 
   /**
-   * Seconds for the press, the spring past and the settle.
+   * Seconds the press takes, and one full cycle of the release.
    *
    * Shorter than the column's over-scroll bounce, and deliberately: this one
    * answers a click, so it wants to land while the finger is still down rather
@@ -695,21 +773,28 @@
    * cap the column — the button is fixed over the page, nothing clips it, so
    * the amplitudes can be as deep as a press wants to be.
    */
-  const BUTTON_BOUNCE = 0.42;
+  const BUTTON_PRESS_TIME = 0.09;
+  const BUTTON_PERIOD = 0.22;
 
-  /** How far the press sinks it, and how far the spring carries past rest. */
-  const BUTTON_PRESS = { x: 0.9, y: 0.84 };
-  const BUTTON_SPRING = { x: 0.98, y: 1.05 };
+  /** How deep the press sinks it, and how far past rest the release carries, per axis. */
+  const BUTTON_DIP = { x: 0.1, y: 0.16 };
+  const BUTTON_OVERSHOOT = { x: 0.004, y: 0.05 };
+
+  /** The release is cut once its remaining swing falls under this share of the dip. */
+  const BUTTON_TAIL = 0.006;
+  const BUTTON_RELEASE_MAX = 0.4;
 
   /**
    * Press the button in and let it spring back.
    *
    * The press is asymmetric: it narrows more than it shortens, so the frosted
    * square reads as soft rubber giving under a finger rather than as a box
-   * being scaled down uniformly. The spring then overshoots past rest and
-   * settles, and the segment that carries it out is itself overshooting, which
-   * leaves a second small kick after the first — a click that is answered
-   * rather than merely acknowledged.
+   * being scaled down uniformly. The release is then the same rest-released
+   * damped spring as the column's over-scroll (see bounceEdge), evaluated per
+   * axis off one shared clock: the narrow axis is damped hard and settles
+   * inside its first swing, while the tall axis rings on through its 5%
+   * overshoot and a small tail — the second faint kick that makes a click
+   * feel answered rather than merely acknowledged.
    *
    * The button's reveal also animates `transform`, so pressing while it is
    * still arriving would snap it straight out of its own entrance. It holds at
@@ -725,24 +810,50 @@
     toTopBouncing = true;
     toTopBounce?.cancel();
 
-    toTopBounce = el.animate(
-      [
-        { transform: 'scale(1)', easing: 'cubic-bezier(0.45, 0, 0.55, 0.4)' },
-        {
-          transform: `scale(${BUTTON_PRESS.x}, ${BUTTON_PRESS.y})`,
-          offset: 0.2,
-          easing: 'cubic-bezier(0.2, 1.4, 0.4, 1)',
-        },
-        {
-          transform: `scale(${BUTTON_SPRING.x}, ${BUTTON_SPRING.y})`,
-          offset: 0.52,
-          easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)',
-        },
-        { transform: 'scale(1.004, 0.996)', offset: 0.76, easing: 'cubic-bezier(0.4, 0, 0.5, 0.6)' },
-        { transform: 'scale(1)' },
-      ],
-      { duration: BUTTON_BOUNCE * 1000, fill: 'none' },
-    );
+    /* Per-axis damping, each solved against its own overshoot — see bounceEdge. */
+    const omega = (2 * Math.PI) / BUTTON_PERIOD;
+    const decayX = (omega / Math.PI) * Math.log(BUTTON_DIP.x / BUTTON_OVERSHOOT.x);
+    const decayY = (omega / Math.PI) * Math.log(BUTTON_DIP.y / BUTTON_OVERSHOOT.y);
+
+    const offset = (t: number, decay: number, dip: number) =>
+      -dip * Math.exp(-decay * t) * (Math.cos(omega * t) + (decay / omega) * Math.sin(omega * t));
+
+    /* Ends on a rest crossing once both tails are spent; y rings longer. */
+    let release = 0;
+    for (let k = 0; k < 64; k++) {
+      const t = (Math.PI - Math.atan(omega / decayY) + k * Math.PI) / omega;
+      if (t > BUTTON_RELEASE_MAX) break;
+      release = t;
+      const swing = (dip: number, decay: number) =>
+        dip * Math.exp((-decay * (k + 1) * Math.PI) / omega);
+      if (Math.max(swing(BUTTON_DIP.x, decayX), swing(BUTTON_DIP.y, decayY)) <= BUTTON_TAIL) break;
+    }
+
+    const total = BUTTON_PRESS_TIME + release;
+
+    const frames: BounceFrame[] = [
+      /* The press: out of rest and decelerating into the sink, to hand over at zero velocity. */
+      { transform: 'scale(1)', easing: 'cubic-bezier(0.3, 0, 0.45, 1)' },
+      {
+        transform: `scale(${1 - BUTTON_DIP.x}, ${1 - BUTTON_DIP.y})`,
+        offset: BUTTON_PRESS_TIME / total,
+      },
+    ];
+
+    /* The release, sampled at frame rate — the curve is the easing. */
+    const steps = Math.ceil(release * 60);
+    for (let i = 1; i <= steps; i++) {
+      const t = (release * i) / steps;
+      frames.push({
+        transform: `scale(${1 + offset(t, decayX, BUTTON_DIP.x)}, ${1 + offset(t, decayY, BUTTON_DIP.y)})`,
+        offset: (BUTTON_PRESS_TIME + t) / total,
+      });
+    }
+
+    /* The last sample lands on the rest crossing; make it exact. */
+    frames[frames.length - 1] = { transform: 'scale(1)' };
+
+    toTopBounce = el.animate(frames, { duration: total * 1000, fill: 'none' });
 
     const settle = () => {
       toTopBouncing = false;
@@ -1081,6 +1192,19 @@
      * nothing left to transition between steps.
      */
     gap: var(--block-gap);
+
+    /*
+     * The over-scroll bounce scales this element, and without a layer of its
+     * own every frame of that scale re-composites the whole frosted stack on
+     * the main thread — eight backdrop-filtered panes re-solved against a
+     * moving backdrop is what read as the bounce lagging. will-change promotes
+     * the column to a compositor layer, so the squash and the spring run as a
+     * GPU transform over an already-rastered stack and the main thread stays
+     * free for the whole gesture. The blur is baked into the layer at rest, so
+     * the frozen raster is what scales — the right trade for a gesture that
+     * is over in under a second.
+     */
+    will-change: transform;
   }
 
   .stack {
@@ -1819,6 +1943,15 @@
     transform: translateY(0.5rem);
     pointer-events: none;
 
+    /*
+     * The press bounce scales the button itself, and the button carries the
+     * same backdrop-filter as the blocks — without a layer of its own, every
+     * frame of the press re-solved the blur at a new size on the main thread.
+     * Promoted, the reveal and the press both composite, and the rasterised
+     * frosted square scales on the GPU.
+     */
+    will-change: transform, opacity;
+
     transition:
       opacity 0.5s ease-out,
       transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1863,7 +1996,17 @@
   .end-mark {
     position: absolute;
     left: 50%;
-    bottom: 1rem;
+
+    /*
+     * The mark's stack is a line taller than it used to be — the two lines now
+     * take their natural leading (see the type rules below) — and the floor
+     * offset gives the last of that height back. Left at the old 1rem the
+     * taller stack rises 12px further into the small row on the tight bands,
+     * whose reservations were tuned to the mark as it measured with the
+     * tightening; at 0.25rem every band measures at or better than it did.
+     * The phone is the exception, restored below.
+     */
+    bottom: 0.25rem;
 
     display: flex;
     flex-direction: column;
@@ -1876,6 +2019,9 @@
     opacity: 0;
     transform: translate(-50%, 1rem) scale(0.5);
 
+    /* Composited like the blocks' own bubble, so the overshoot rides the GPU. */
+    will-change: transform, opacity;
+
     transition:
       opacity 0.35s ease-out,
       transform 0.7s cubic-bezier(0.2, 1.75, 0.35, 1);
@@ -1887,11 +2033,20 @@
   }
 
   /*
-   * The hero's own type and the hero's own tightening, unmodified — the same
-   * clamps, line-heights and tracking, and the same -0.625rem margin on the
-   * second line — so the mark here measures the same as the one the page opened
-   * on, ink gap included. See LandingPage.svelte for why the gap is a margin and
-   * how far it can go before the ink merges.
+   * The phone takes the original floor back: the mark is a fraction of the
+   * band there — both its faces sit at their clamp floors and clear the row by
+   * a wide margin — so the extra 12px of height costs nothing there and the
+   * old offset keeps the mark's distance from the footer line.
+   */
+  .blocks[style*='--device: phone'] .end-mark {
+    bottom: 1rem;
+  }
+
+  /*
+   * The hero's own type, unmodified — the same clamps, line-heights, tracking
+   * and natural stack, with no margin between the lines — so the mark here
+   * measures the same as the one the page opened on, ink gap included. See
+   * LandingPage.svelte for how the gap is the leading itself.
    *
    * The clamp matches the hero's own (11vw, 5.5rem ceiling) for the same
    * reason it was narrowed there: at 13vw the mark measured 119px tall on a
@@ -1913,7 +2068,6 @@
     line-height: 1;
     letter-spacing: -0.05em;
     color: var(--color-neutral-100);
-    margin-top: -0.625rem;
   }
 
   /*
@@ -1952,12 +2106,14 @@
    * mark is a fraction of the desktop height, so the reservation comes down
    * with them — keyed off the device class, like every other per-band number.
    *
-   * The phone's mark measures 60px (56px name + the negative-margin overlap)
-   * and sits 16px up from the body's floor, so it needs 76px of room below the
+   * The phone's mark measures 70px (56px name + 20px studio, the lines now at
+   * their natural leading) and sits 16px up from the body's floor, so it needs
+   * 86px of room below the
    * small row. Measured at 390×844 the row's bottom left only 54px of body
    * beneath it, so the mark and the row overlapped by 23px no matter what the
-   * column's own slack was. 12dvh of that body is 101px — enough for the mark
-   * to sit clear under the row at every phone height the class covers.
+   * column's own slack was. 12dvh of that body is 101px, and the column's own
+   * slack tops it up on shorter phones — measured at 375×667 the name ink
+   * still sits 35px clear of the row.
    */
   .blocks[style*='--device: phone'].blocks--end {
     padding-bottom: 12dvh;

@@ -158,25 +158,24 @@
     transition: opacity var(--exit-duration) ease-in;
 
     /*
-     * The two lines are stacked tighter than they were.
+     * The two lines stack at their natural box gap — no flex gap, no margin —
+     * so the entire space between them is the two line boxes' own leading.
+     * Both use line-heights below 1, so each box is shorter than the type it
+     * holds and the ink sits inset inside its box, and that inset is a share
+     * of the type size. The lockup therefore keeps its proportions at every
+     * width.
      *
-     * `gap` cannot take a negative length — the property only accepts
-     * non-negative values and a negative one is dropped as invalid — so the flex
-     * gap above is zeroed and the overlap is carried by `.studio`'s margin
-     * instead.
+     * Measured, the boxes draw the ink 13px apart at the design sizes and 7px
+     * on a phone — narrower there because every face is smaller, the same
+     * share of the wordmark.
      *
-     * How far apart the ink actually ends up is not the margin. Both words use
-     * line-heights below 1, so each box is shorter than the type it holds, and
-     * measured across the 96px design size the ink sits 15px inside the boxes:
-     * a box gap of 0 draws the ink 15px apart. So the margin has to be read
-     * against that, and it bottoms out at about -10px before the ink itself
-     * starts to touch — at -20px the two runs merge into one and STUDIO cuts
-     * through the middle of NAMMADE.
-     *
-     * -0.625rem is 22px tighter than the 12px this was before, which is where
-     * the design's tightening lands before the ink collides.
+     * The pair used to be pulled together with a -0.625rem margin on STUDIO.
+     * The trouble was that the tightening was a fixed length against type that
+     * scales: at the design size it left 3px of ink between the words, and on
+     * a phone the same 10px was half of STUDIO's 20px line box and took the
+     * ink to a 3px overlap — STUDIO's caps cut up into NAMMADE. The natural
+     * leading needs no correction at any size.
      */
-    gap: 0;
     width: 100%;
     /*
      * dvh over vh: the dynamic viewport tracks the space the mobile browser's
@@ -304,13 +303,6 @@
 
   .studio {
     font-family: var(--font-studio);
-    /*
-     * The tightening, carried as a margin because the flex gap cannot go
-     * negative. The negative top edge pulls the line up into the one above it;
-     * the pair is centred as a group, so pulling one up also nudges the other
-     * down by half as much and the whole stack settles on its own centre.
-     */
-    margin-top: -0.625rem;
 
     /*
      * The vw term has to reach 2.8125rem by about an 87.5rem viewport, otherwise
